@@ -14,6 +14,7 @@
     --muted: #8b98a5;
     --accent: #4da3ff;
     --green: #3ddc84;
+    --amber: #ffc14d;
     --red: #ff5c5c;
     --radius: 12px;
   }
@@ -21,33 +22,40 @@
   html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
   body { padding-bottom: 40px; }
+  button { font-family: inherit; }
 
   header {
-    display: flex; gap: 8px; align-items: center;
-    padding: 10px 12px; background: var(--panel);
+    display: flex; gap: 6px; align-items: center;
+    padding: 8px 10px; background: var(--panel);
+    position: sticky; top: 0; z-index: 20;
   }
   header select {
-    flex: 1; min-width: 0; font-size: 16px; padding: 10px;
+    flex: 1; min-width: 0; font-size: 15px; padding: 9px;
     background: var(--panel2); color: var(--text);
     border: 1px solid #2f3a45; border-radius: var(--radius);
   }
   .iconbtn {
-    font-size: 18px; padding: 10px 12px; background: var(--panel2);
+    font-size: 17px; padding: 9px 11px; background: var(--panel2);
     color: var(--text); border: 1px solid #2f3a45; border-radius: var(--radius);
   }
+  .iconbtn.on { background: #1d3450; border-color: var(--accent); color: var(--accent); }
+  .iconbtn.editon { background: #3d2f14; border-color: var(--amber); color: var(--amber); }
 
+  /* Video */
+  #videoArea { display: flex; justify-content: center; background: #000; }
   #playerWrap { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; }
   #playerWrap iframe, #player { position: absolute; inset: 0; width: 100%; height: 100%; }
   #playerPlaceholder {
     position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    color: var(--muted); font-size: 15px; text-align: center; padding: 20px;
-    background: #000;
+    color: var(--muted); font-size: 15px; text-align: center; padding: 20px; background: #000;
   }
+  /* buttons view: shrink the video */
+  body.view-buttons #videoArea { max-height: 175px; }
+  body.view-buttons #playerWrap { max-height: 175px; }
 
   .section { padding: 10px 12px; }
   .card { background: var(--panel); border-radius: var(--radius); padding: 10px; }
 
-  /* Marks / transport */
   .markrow { display: flex; gap: 8px; }
   .markrow + .markrow { margin-top: 8px; }
   .markbtn {
@@ -58,15 +66,15 @@
   }
   .markbtn .time { font-size: 13px; font-weight: 400; color: var(--accent); }
   .nudge {
-    width: 44px; font-size: 15px; background: var(--panel2); color: var(--muted);
+    width: 42px; font-size: 15px; background: var(--panel2); color: var(--muted);
     border: 1px solid #2f3a45; border-radius: var(--radius);
   }
   .bigbtn {
-    flex: 1; padding: 14px 4px; font-size: 17px; font-weight: 700;
+    flex: 1; padding: 13px 4px; font-size: 16px; font-weight: 700;
     background: var(--accent); color: #06121f; border: none; border-radius: var(--radius);
   }
   .toggle {
-    flex: 1; padding: 14px 4px; font-size: 17px; font-weight: 700;
+    flex: 1; padding: 13px 4px; font-size: 16px; font-weight: 700;
     background: var(--panel2); color: var(--muted);
     border: 1px solid #2f3a45; border-radius: var(--radius);
   }
@@ -76,19 +84,36 @@
   .counters { display: flex; gap: 10px; margin-top: 10px; }
   .counter { flex: 1; text-align: center; }
   .counter .tapbtn {
-    width: 100%; padding: 22px 0 16px; border: none; border-radius: var(--radius);
-    background: var(--panel2); color: var(--text); font-size: 16px;
+    width: 100%; border: none; border-radius: var(--radius);
+    background: var(--panel2); color: var(--text); font-size: 15px;
+    padding: 14px 0 10px;
   }
-  .counter .tapbtn .num { display: block; font-size: 44px; font-weight: 800; line-height: 1.1; }
-  .counter .tapbtn .lbl { color: var(--muted); font-size: 14px; }
-  .counter .tapbtn .tgt { color: var(--muted); font-size: 14px; }
+  .counter .tapbtn .num { display: block; font-weight: 800; line-height: 1.1; font-size: 32px; }
+  .counter .tapbtn .lbl, .counter .tapbtn .tgt { color: var(--muted); font-size: 13px; }
   .counter .tapbtn.done { background: #14351f; }
   .counter .tapbtn.done .num { color: var(--green); }
+  .counter .tapbtn.timing { background: #1d3450; }
+  .counter .tapbtn.timing .num { color: var(--accent); }
   .counter .minus {
-    margin-top: 6px; width: 100%; padding: 8px; font-size: 18px;
+    margin-top: 6px; width: 100%; padding: 7px; font-size: 16px;
     background: transparent; color: var(--muted);
     border: 1px solid #2f3a45; border-radius: var(--radius);
   }
+  /* buttons view: huge counters */
+  body.view-buttons.mode-normal .counter .tapbtn { padding: 30px 0 22px; }
+  body.view-buttons.mode-normal .counter .tapbtn .num { font-size: 60px; }
+  body.view-buttons.mode-normal .counter .tapbtn .lbl,
+  body.view-buttons.mode-normal .counter .tapbtn .tgt { font-size: 16px; }
+  body.view-buttons.mode-normal .bigbtn, body.view-buttons.mode-normal .toggle { padding: 18px 4px; font-size: 18px; }
+  body.view-buttons.mode-normal .setbtn { padding: 18px; font-size: 18px; }
+
+  .setbtn {
+    width: 100%; margin-top: 10px; padding: 13px; font-size: 16px; font-weight: 700;
+    background: transparent; color: var(--amber);
+    border: 1px solid var(--amber); border-radius: var(--radius);
+  }
+  .setinfo { text-align: center; color: var(--muted); font-size: 14px; margin-top: 8px; }
+  .setinfo b { color: var(--text); }
 
   /* Exercise list */
   .exlist { display: flex; flex-direction: column; gap: 8px; }
@@ -100,7 +125,7 @@
   .exitem .info { flex: 1; min-width: 0; }
   .exitem .name { font-weight: 600; font-size: 16px; }
   .exitem .meta { color: var(--muted); font-size: 13px; margin-top: 2px; }
-  .exitem .progress { font-size: 15px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+  .exitem .progress { font-size: 14px; font-weight: 700; color: var(--muted); white-space: nowrap; }
   .exitem .progress.done { color: var(--green); }
   .exitem .edit { font-size: 16px; padding: 8px; background: transparent; border: none; color: var(--muted); }
 
@@ -111,29 +136,49 @@
     border: 1px solid var(--accent); border-radius: var(--radius);
   }
   .outbtn.gray { color: var(--muted); border-color: #2f3a45; }
+  .outbtn.green { color: var(--green); border-color: var(--green); }
 
-  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 0.08em;
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em;
        color: var(--muted); margin: 14px 0 8px; }
 
-  /* Modal */
-  #modalOverlay {
+  /* Edit-only / normal-only visibility */
+  body.mode-normal .editonly { display: none !important; }
+  body.mode-edit .normalonly { display: none !important; }
+
+  /* History */
+  #historyList { display: flex; flex-direction: column; gap: 6px; }
+  .histitem { background: var(--panel); border-radius: var(--radius); padding: 9px 12px;
+    font-size: 13px; color: var(--muted); display: flex; gap: 10px; }
+  .histitem .d { color: var(--text); white-space: nowrap; }
+  .histitem .w { flex: 1; }
+
+  /* Modals */
+  .overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,0.6);
     display: none; align-items: flex-end; z-index: 50;
   }
-  #modalOverlay.show { display: flex; }
-  #modal {
+  .overlay.show { display: flex; }
+  .modal {
     background: var(--panel); width: 100%; border-radius: 16px 16px 0 0;
-    padding: 16px 16px 28px; max-height: 85vh; overflow-y: auto;
+    padding: 16px 16px 28px; max-height: 88vh; overflow-y: auto;
   }
-  #modal h3 { margin: 0 0 12px; font-size: 18px; }
-  #modal label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
-  #modal input[type=text], #modal input[type=number], #modal input[type=url] {
+  .modal h3 { margin: 0 0 12px; font-size: 18px; }
+  .modal label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
+  .modal input[type=text], .modal input[type=number], .modal input[type=url], .modal select {
     width: 100%; padding: 12px; font-size: 16px;
     background: var(--panel2); color: var(--text);
     border: 1px solid #2f3a45; border-radius: var(--radius);
   }
+  .modal .half { display: flex; gap: 10px; }
+  .modal .half > div { flex: 1; }
   .checkrow { display: flex; align-items: center; gap: 10px; margin-top: 14px; font-size: 16px; }
   .checkrow input { width: 22px; height: 22px; }
+  .segrow { display: flex; gap: 8px; }
+  .segrow button {
+    flex: 1; padding: 11px; font-size: 15px; background: var(--panel2); color: var(--muted);
+    border: 1px solid #2f3a45; border-radius: var(--radius);
+  }
+  .segrow button.sel { background: #1d3450; color: var(--accent); border-color: var(--accent); }
   .modalbtns { display: flex; gap: 8px; margin-top: 20px; }
   .modalbtns .save { flex: 2; padding: 14px; font-size: 16px; font-weight: 700;
     background: var(--accent); color: #06121f; border: none; border-radius: var(--radius); }
@@ -141,32 +186,42 @@
     background: var(--panel2); color: var(--text); border: 1px solid #2f3a45; border-radius: var(--radius); }
   .modalbtns .delete { flex: 1; padding: 14px; font-size: 16px;
     background: transparent; color: var(--red); border: 1px solid var(--red); border-radius: var(--radius); }
+  .hint { font-size: 13px; color: var(--muted); line-height: 1.5; margin-top: 10px; }
+  .hint a { color: var(--accent); }
+  .syncstatus { font-size: 13px; margin-top: 10px; color: var(--muted); }
+  .syncstatus.ok { color: var(--green); }
+  .syncstatus.err { color: var(--red); }
 
   .toast {
     position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
     background: var(--panel2); color: var(--text); padding: 10px 18px;
     border-radius: 20px; font-size: 14px; opacity: 0; transition: opacity 0.25s;
-    pointer-events: none; z-index: 100; border: 1px solid #2f3a45;
+    pointer-events: none; z-index: 100; border: 1px solid #2f3a45; white-space: nowrap;
   }
   .toast.show { opacity: 1; }
 </style>
 </head>
-<body>
+<body class="mode-normal view-video">
 
 <header>
   <select id="routineSelect"></select>
-  <button class="iconbtn" id="addRoutineBtn" title="New routine">＋</button>
-  <button class="iconbtn" id="routineMenuBtn" title="Routine options">⋯</button>
+  <button class="iconbtn editonly" id="addRoutineBtn" title="New routine">＋</button>
+  <button class="iconbtn editonly" id="routineMenuBtn" title="Routine options">⋯</button>
+  <button class="iconbtn normalonly" id="viewBtn" title="Toggle view">🎬</button>
+  <button class="iconbtn" id="editBtn" title="Edit mode">✏️</button>
+  <button class="iconbtn" id="syncBtn" title="Cloud sync">☁</button>
 </header>
 
-<div id="playerWrap">
-  <div id="player"></div>
-  <div id="playerPlaceholder">Add an exercise below,<br>then tap it to load its video.</div>
+<div id="videoArea">
+  <div id="playerWrap">
+    <div id="player"></div>
+    <div id="playerPlaceholder">Add an exercise (✏️ edit mode),<br>then tap it to load its video.</div>
+  </div>
 </div>
 
 <div class="section">
   <div class="card" id="controlsCard" style="display:none">
-    <div class="markrow">
+    <div class="markrow editonly">
       <button class="nudge" id="startMinus">−1</button>
       <button class="markbtn" id="setStartBtn">Set Start <span class="time" id="startTime">–</span></button>
       <button class="nudge" id="startPlus">+1</button>
@@ -175,42 +230,108 @@
       <button class="nudge" id="endPlus">+1</button>
     </div>
     <div class="markrow">
-      <button class="bigbtn" id="restartBtn">⟲ Restart at Start</button>
+      <button class="bigbtn" id="restartBtn">⟲ Restart</button>
       <button class="toggle" id="loopBtn">Loop</button>
     </div>
 
     <div class="counters" id="countersWrap"></div>
-    <div class="rowbtns">
+    <div id="setArea"></div>
+
+    <div class="rowbtns editonly">
       <button class="outbtn gray" id="resetExBtn">Reset this exercise</button>
     </div>
   </div>
 
   <h2>Exercises</h2>
   <div class="exlist" id="exList"></div>
-  <div class="rowbtns">
+  <div class="rowbtns editonly">
     <button class="outbtn" id="addExBtn">＋ Add exercise</button>
     <button class="outbtn gray" id="resetAllBtn">Reset all counts</button>
   </div>
+  <div class="rowbtns normalonly">
+    <button class="outbtn green" id="finishBtn">✓ Finish &amp; log session</button>
+  </div>
+
+  <h2>Recent history</h2>
+  <div id="historyList"></div>
 </div>
 
 <!-- Add/Edit exercise modal -->
-<div id="modalOverlay">
-  <div id="modal">
+<div class="overlay" id="modalOverlay">
+  <div class="modal">
     <h3 id="modalTitle">Add exercise</h3>
     <label>Name</label>
     <input type="text" id="mName" placeholder="e.g. Banded shoulder rotation">
     <label>YouTube URL or video ID</label>
     <input type="url" id="mUrl" placeholder="https://youtube.com/watch?v=…">
-    <label>Target reps (0 = no target)</label>
-    <input type="number" id="mTarget" min="0" inputmode="numeric" value="10">
+
+    <label>Exercise type</label>
+    <div class="segrow" id="mMode">
+      <button data-v="reps" class="sel">Count reps</button>
+      <button data-v="time">Timed hold</button>
+    </div>
+
+    <div class="half">
+      <div id="mRepsWrap">
+        <label>Reps per set</label>
+        <input type="number" id="mReps" min="0" inputmode="numeric" value="10">
+      </div>
+      <div id="mSecsWrap" style="display:none">
+        <label>Seconds per set</label>
+        <input type="number" id="mSecs" min="1" inputmode="numeric" value="30">
+      </div>
+      <div>
+        <label>Sets</label>
+        <input type="number" id="mSets" min="1" inputmode="numeric" value="3">
+      </div>
+    </div>
+
     <div class="checkrow">
       <input type="checkbox" id="mPerSide">
-      <label for="mPerSide" style="margin:0;color:var(--text)">Count per side (left / right)</label>
+      <label for="mPerSide" style="margin:0;color:var(--text)">Per side (left / right)</label>
     </div>
+
+    <label>Video shape (aspect ratio)</label>
+    <div class="segrow" id="mAspect">
+      <button data-v="16/9" class="sel">16:9</button>
+      <button data-v="4/3">4:3</button>
+      <button data-v="1/1">1:1</button>
+      <button data-v="9/16">9:16 ↑</button>
+    </div>
+
     <div class="modalbtns">
       <button class="delete" id="mDelete" style="display:none">Delete</button>
       <button class="cancel" id="mCancel">Cancel</button>
       <button class="save" id="mSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Sync modal -->
+<div class="overlay" id="syncOverlay">
+  <div class="modal">
+    <h3>Cloud sync (Google Sheet)</h3>
+    <label>Apps Script web app URL</label>
+    <input type="url" id="sUrl" placeholder="https://script.google.com/macros/s/…/exec">
+    <div class="checkrow">
+      <input type="checkbox" id="sAuto" checked>
+      <label for="sAuto" style="margin:0;color:var(--text)">Auto-save to cloud after changes</label>
+    </div>
+    <div class="rowbtns">
+      <button class="outbtn" id="sPush">⬆ Save to cloud now</button>
+      <button class="outbtn" id="sPull">⬇ Load from cloud</button>
+    </div>
+    <div class="syncstatus" id="sStatus"></div>
+    <div class="hint">
+      One-time setup: create a Google Sheet → Extensions → Apps Script → paste the
+      script from <a href="https://github.com/bdnorg/vi-pt#cloud-sync-setup" target="_blank">the setup guide</a>
+      → Deploy → New deployment → Web app, execute as <b>Me</b>, access
+      <b>Anyone</b> → copy the URL here. Your routines and full exercise history are
+      stored in your own spreadsheet.
+    </div>
+    <div class="modalbtns">
+      <button class="cancel" id="sClose">Close</button>
+      <button class="save" id="sSave">Save settings</button>
     </div>
   </div>
 </div>
@@ -228,23 +349,52 @@ function uid() { return Math.random().toString(36).slice(2, 10); }
 function defaultState() {
   const rid = uid();
   return {
+    v: 2,
     routines: [{ id: rid, name: "My Routine", exercises: [] }],
     activeRoutineId: rid,
     activeExerciseId: null,
-    counts: {},   // exerciseId -> {l, r} or {n}
-    loop: false
+    counts: {},          // exerciseId -> progress (see countsFor)
+    history: [],         // [{date, routine, exercise, l, r, n, sets}]
+    pendingHistory: [],  // history rows not yet pushed to the sheet
+    loop: false,
+    ui: { mode: "normal", view: "video" },
+    sync: { url: "", auto: true }
   };
+}
+
+function migrate(s) {
+  if (s.v >= 2) return s;
+  // v1 -> v2
+  s.v = 2;
+  s.history = []; s.pendingHistory = [];
+  s.ui = { mode: "normal", view: "video" };
+  s.sync = { url: "", auto: true };
+  for (const r of s.routines) {
+    for (const ex of r.exercises) {
+      ex.mode = "reps";
+      ex.reps = ex.target || 10;
+      ex.sets = 1;
+      ex.seconds = 30;
+      ex.aspect = "16/9";
+      delete ex.target;
+    }
+  }
+  s.counts = {};
+  return s;
 }
 
 let state = load();
 function load() {
   try {
     const raw = localStorage.getItem(STORE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) return migrate(JSON.parse(raw));
   } catch (e) {}
   return defaultState();
 }
-function save() { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+function save() {
+  localStorage.setItem(STORE_KEY, JSON.stringify(state));
+  scheduleAutoPush();
+}
 
 function activeRoutine() {
   return state.routines.find(r => r.id === state.activeRoutineId) || state.routines[0];
@@ -253,8 +403,14 @@ function activeExercise() {
   const r = activeRoutine();
   return r ? r.exercises.find(e => e.id === state.activeExerciseId) : null;
 }
+// reps mode: {l, r, n} reps in current set; {tl, tr, tn} totals; {sets} completed
+// time mode: {setsL, setsR} or {setsN}
 function countsFor(ex) {
-  if (!state.counts[ex.id]) state.counts[ex.id] = ex.perSide ? { l: 0, r: 0 } : { n: 0 };
+  if (!state.counts[ex.id]) {
+    state.counts[ex.id] = ex.mode === "time"
+      ? (ex.perSide ? { setsL: 0, setsR: 0 } : { setsN: 0 })
+      : (ex.perSide ? { l: 0, r: 0, tl: 0, tr: 0, sets: 0 } : { n: 0, tn: 0, sets: 0 });
+  }
   return state.counts[ex.id];
 }
 
@@ -277,10 +433,30 @@ function loadExerciseVideo(ex, autoplay) {
   const req = { videoId: ex.videoId, start: ex.start || 0, autoplay };
   if (playerReady) doLoad(req); else pendingLoad = req;
   document.getElementById("playerPlaceholder").style.display = "none";
+  applyVideoShape(ex);
 }
 function doLoad(req) {
   if (req.autoplay) player.loadVideoById({ videoId: req.videoId, startSeconds: req.start });
   else player.cueVideoById({ videoId: req.videoId, startSeconds: req.start });
+}
+
+function applyVideoShape(ex) {
+  const wrap = document.getElementById("playerWrap");
+  const aspect = (ex && ex.aspect) || "16/9";
+  wrap.style.aspectRatio = aspect;
+  const [w, h] = aspect.split("/").map(Number);
+  if (state.ui.view === "buttons") {
+    // small video strip
+    wrap.style.width = (175 * (w / h)) + "px";
+    wrap.style.maxWidth = "100%";
+  } else if (h > w) {
+    // portrait in big view: cap height, center
+    wrap.style.width = "min(100%, calc(68vh * " + (w / h) + "))";
+    wrap.style.maxWidth = "100%";
+  } else {
+    wrap.style.width = "100%";
+    wrap.style.maxWidth = "";
+  }
 }
 
 // Loop watcher
@@ -316,10 +492,72 @@ function toast(msg) {
   el.textContent = msg;
   el.classList.add("show");
   clearTimeout(el._t);
-  el._t = setTimeout(() => el.classList.remove("show"), 1600);
+  el._t = setTimeout(() => el.classList.remove("show"), 1800);
+}
+function vib(ms) { if (navigator.vibrate) navigator.vibrate(ms); }
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, ch => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[ch]);
+}
+
+// ---------- Timer (timed holds) ----------
+let timer = null; // {exId, side, remaining, iv}
+
+function stopTimer() {
+  if (timer) { clearInterval(timer.iv); timer = null; }
+}
+function startTimer(ex, side) {
+  if (timer && timer.exId === ex.id && timer.side === side) { stopTimer(); renderControls(); return; }
+  stopTimer();
+  timer = { exId: ex.id, side, remaining: ex.seconds, iv: null };
+  timer.iv = setInterval(() => {
+    timer.remaining--;
+    if (timer.remaining <= 0) {
+      const c = countsFor(ex);
+      if (side === "l") c.setsL++; else if (side === "r") c.setsR++; else c.setsN++;
+      stopTimer();
+      vib([200, 100, 200]);
+      save(); renderControls(); renderExercises();
+      toast("Set done!");
+    } else {
+      if (timer.remaining <= 3) vib(40);
+      renderControls();
+    }
+  }, 1000);
+  renderControls();
+}
+
+// ---------- Progress / doneness ----------
+function exDone(ex) {
+  const c = state.counts[ex.id];
+  if (!c) return false;
+  if (ex.mode === "time")
+    return ex.perSide ? (c.setsL >= ex.sets && c.setsR >= ex.sets) : c.setsN >= ex.sets;
+  return c.sets >= ex.sets;
+}
+function exProgress(ex) {
+  const c = state.counts[ex.id];
+  if (!c) return "0/" + ex.sets + " sets";
+  if (ex.mode === "time") {
+    return ex.perSide
+      ? "L " + c.setsL + " · R " + c.setsR + " / " + ex.sets + " sets"
+      : c.setsN + "/" + ex.sets + " sets";
+  }
+  return c.sets + "/" + ex.sets + " sets";
 }
 
 // ---------- Rendering ----------
+function renderModeUI() {
+  document.body.classList.toggle("mode-edit", state.ui.mode === "edit");
+  document.body.classList.toggle("mode-normal", state.ui.mode === "normal");
+  document.body.classList.toggle("view-video", state.ui.view === "video");
+  document.body.classList.toggle("view-buttons", state.ui.view === "buttons");
+  document.getElementById("editBtn").classList.toggle("editon", state.ui.mode === "edit");
+  document.getElementById("viewBtn").textContent = state.ui.view === "video" ? "🎬" : "🔢";
+  applyVideoShape(activeExercise());
+}
+
 function renderRoutines() {
   const sel = document.getElementById("routineSelect");
   sel.innerHTML = "";
@@ -345,26 +583,53 @@ function renderControls() {
   loopBtn.classList.toggle("on", state.loop);
   loopBtn.textContent = state.loop ? "Loop ✓" : "Loop";
 
-  // Counters
   const wrap = document.getElementById("countersWrap");
-  wrap.innerHTML = "";
+  const setArea = document.getElementById("setArea");
+  wrap.innerHTML = ""; setArea.innerHTML = "";
   const c = countsFor(ex);
-  const mk = (label, key) => {
+
+  if (ex.mode === "time") {
+    const mkTimer = (label, side, setsKey) => {
+      const div = document.createElement("div");
+      div.className = "counter";
+      const running = timer && timer.exId === ex.id && timer.side === side;
+      const hit = c[setsKey] >= ex.sets;
+      div.innerHTML =
+        '<button class="tapbtn' + (running ? " timing" : hit ? " done" : "") + '">' +
+          '<span class="lbl">' + label + '</span>' +
+          '<span class="num">' + (running ? timer.remaining : ex.seconds + "s") + '</span>' +
+          '<span class="tgt">' + c[setsKey] + " of " + ex.sets + " sets</span>" +
+        '</button>' +
+        '<button class="minus">− set</button>';
+      div.querySelector(".tapbtn").addEventListener("click", () => startTimer(ex, side));
+      div.querySelector(".minus").addEventListener("click", () => {
+        c[setsKey] = Math.max(0, c[setsKey] - 1);
+        save(); renderControls(); renderExercises();
+      });
+      wrap.appendChild(div);
+    };
+    if (ex.perSide) { mkTimer("Left · hold", "l", "setsL"); mkTimer("Right · hold", "r", "setsR"); }
+    else mkTimer("Hold", "n", "setsN");
+    setArea.innerHTML = '<div class="setinfo">Tap to start a <b>' + ex.seconds + 's</b> hold — a finished timer counts one set.</div>';
+    return;
+  }
+
+  // reps mode
+  const mkRep = (label, key) => {
     const div = document.createElement("div");
     div.className = "counter";
     const val = c[key];
-    const hitTarget = ex.target > 0 && val >= ex.target;
+    const hit = ex.reps > 0 && val >= ex.reps;
     div.innerHTML =
-      '<button class="tapbtn' + (hitTarget ? " done" : "") + '">' +
+      '<button class="tapbtn' + (hit ? " done" : "") + '">' +
         '<span class="lbl">' + label + '</span>' +
         '<span class="num">' + val + '</span>' +
-        (ex.target > 0 ? '<span class="tgt">of ' + ex.target + '</span>' : '') +
+        (ex.reps > 0 ? '<span class="tgt">of ' + ex.reps + '</span>' : '') +
       '</button>' +
       '<button class="minus">−1</button>';
     div.querySelector(".tapbtn").addEventListener("click", () => {
-      c[key]++;
+      c[key]++; vib(30);
       save(); renderControls(); renderExercises();
-      if (navigator.vibrate) navigator.vibrate(30);
     });
     div.querySelector(".minus").addEventListener("click", () => {
       c[key] = Math.max(0, c[key] - 1);
@@ -372,23 +637,22 @@ function renderControls() {
     });
     wrap.appendChild(div);
   };
-  if (ex.perSide) { mk("Left", "l"); mk("Right", "r"); }
-  else mk("Reps", "n");
-}
+  if (ex.perSide) { mkRep("Left", "l"); mkRep("Right", "r"); }
+  else mkRep("Reps", "n");
 
-function exProgress(ex) {
-  const c = state.counts[ex.id];
-  if (!c) return ex.target > 0 ? "0/" + ex.target : "0";
-  if (ex.perSide) {
-    const t = ex.target > 0 ? "/" + ex.target : "";
-    return "L " + c.l + t + " · R " + c.r + t;
-  }
-  return c.n + (ex.target > 0 ? "/" + ex.target : "");
-}
-function exDone(ex) {
-  const c = state.counts[ex.id];
-  if (!c || !(ex.target > 0)) return false;
-  return ex.perSide ? (c.l >= ex.target && c.r >= ex.target) : c.n >= ex.target;
+  const done = c.sets >= ex.sets;
+  const btn = document.createElement("button");
+  btn.className = "setbtn";
+  btn.textContent = done ? "✓ All " + ex.sets + " sets done" : "✓ Complete set  (" + c.sets + "/" + ex.sets + ")";
+  if (done) { btn.style.color = "var(--green)"; btn.style.borderColor = "var(--green)"; }
+  btn.addEventListener("click", () => {
+    if (ex.perSide) { c.tl += c.l; c.tr += c.r; c.l = 0; c.r = 0; }
+    else { c.tn += c.n; c.n = 0; }
+    c.sets++;
+    vib([100, 60, 100]);
+    save(); renderControls(); renderExercises();
+  });
+  setArea.appendChild(btn);
 }
 
 function renderExercises() {
@@ -399,50 +663,80 @@ function renderExercises() {
   if (r.exercises.length === 0) {
     const p = document.createElement("div");
     p.style.cssText = "color:var(--muted);font-size:14px;padding:8px 4px;";
-    p.textContent = "No exercises yet. Tap “Add exercise” and paste a YouTube link.";
+    p.textContent = "No exercises yet. Turn on ✏️ edit mode and tap “Add exercise”.";
     list.appendChild(p);
   }
   for (const ex of r.exercises) {
     const item = document.createElement("div");
     item.className = "exitem" + (ex.id === state.activeExerciseId ? " active" : "");
     const done = exDone(ex);
+    const kind = ex.mode === "time" ? ex.seconds + "s hold" : ex.reps + " reps";
     item.innerHTML =
       '<div class="info">' +
         '<div class="name">' + escapeHtml(ex.name) + '</div>' +
-        '<div class="meta">' + fmt(ex.start) + " → " + fmt(ex.end) +
-          (ex.perSide ? " · per side" : "") + '</div>' +
+        '<div class="meta">' + kind + " × " + ex.sets +
+          (ex.perSide ? " · per side" : "") + " · " + fmt(ex.start) + "→" + fmt(ex.end) + '</div>' +
       '</div>' +
       '<div class="progress' + (done ? " done" : "") + '">' +
         (done ? "✓ " : "") + exProgress(ex) + '</div>' +
-      '<button class="edit">✎</button>';
+      '<button class="edit editonly">✎</button>';
     item.querySelector(".info").addEventListener("click", () => selectExercise(ex.id));
     item.querySelector(".progress").addEventListener("click", () => selectExercise(ex.id));
     item.querySelector(".edit").addEventListener("click", (e) => {
-      e.stopPropagation();
-      openModal(ex);
+      e.stopPropagation(); openModal(ex);
     });
     list.appendChild(item);
   }
 }
 
-function escapeHtml(s) {
-  return s.replace(/[&<>"']/g, ch => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-  })[ch]);
+function renderHistory() {
+  const list = document.getElementById("historyList");
+  list.innerHTML = "";
+  const recent = state.history.slice(-12).reverse();
+  if (recent.length === 0) {
+    list.innerHTML = '<div style="color:var(--muted);font-size:13px;">Nothing logged yet — finish a session to record it.</div>';
+    return;
+  }
+  for (const h of recent) {
+    const div = document.createElement("div");
+    div.className = "histitem";
+    let what;
+    if (h.timed) {
+      what = (h.l != null || h.r != null)
+        ? (h.l || 0) + "L / " + (h.r || 0) + "R holds"
+        : h.sets + " holds";
+    }
+    else if (h.l != null || h.r != null) what = (h.l || 0) + "L / " + (h.r || 0) + "R reps · " + h.sets + " sets";
+    else if (h.n != null) what = h.n + " reps · " + h.sets + " sets";
+    else what = h.sets + " sets";
+    div.innerHTML = '<span class="d">' + escapeHtml(h.date.slice(5, 10)) + '</span>' +
+      '<span class="w">' + escapeHtml(h.exercise) + '</span><span>' + what + '</span>';
+    list.appendChild(div);
+  }
 }
 
-function renderAll() { renderRoutines(); renderControls(); renderExercises(); }
+function renderAll() { renderModeUI(); renderRoutines(); renderControls(); renderExercises(); renderHistory(); }
 
 // ---------- Actions ----------
 function selectExercise(id) {
   const r = activeRoutine();
   const ex = r.exercises.find(e => e.id === id);
   if (!ex) return;
+  stopTimer();
   state.activeExerciseId = id;
   save();
   loadExerciseVideo(ex, true);
   renderControls(); renderExercises();
 }
+
+document.getElementById("editBtn").addEventListener("click", () => {
+  state.ui.mode = state.ui.mode === "edit" ? "normal" : "edit";
+  save(); renderAll();
+});
+document.getElementById("viewBtn").addEventListener("click", () => {
+  state.ui.view = state.ui.view === "video" ? "buttons" : "video";
+  save(); renderModeUI(); renderControls();
+});
 
 document.getElementById("setStartBtn").addEventListener("click", () => {
   const ex = activeExercise();
@@ -477,34 +771,61 @@ document.getElementById("restartBtn").addEventListener("click", () => {
   player.seekTo(ex.start || 0, true);
   player.playVideo();
 });
-
 document.getElementById("loopBtn").addEventListener("click", () => {
   state.loop = !state.loop;
   save(); renderControls();
 });
-
 document.getElementById("resetExBtn").addEventListener("click", () => {
   const ex = activeExercise();
   if (!ex) return;
   delete state.counts[ex.id];
   save(); renderControls(); renderExercises();
 });
-
 document.getElementById("resetAllBtn").addEventListener("click", () => {
   if (!confirm("Reset all counts for this routine?")) return;
-  const r = activeRoutine();
-  for (const ex of r.exercises) delete state.counts[ex.id];
+  for (const ex of activeRoutine().exercises) delete state.counts[ex.id];
   save(); renderControls(); renderExercises();
+});
+
+// Finish session: log history, reset counts
+document.getElementById("finishBtn").addEventListener("click", () => {
+  const r = activeRoutine();
+  const date = new Date().toISOString().slice(0, 16).replace("T", " ");
+  const rows = [];
+  for (const ex of r.exercises) {
+    const c = state.counts[ex.id];
+    if (!c) continue;
+    let row = { date, routine: r.name, exercise: ex.name, sets: 0 };
+    if (ex.mode === "time") {
+      row.timed = true;
+      if (ex.perSide) { if (!c.setsL && !c.setsR) continue; row.l = c.setsL; row.r = c.setsR; row.sets = Math.min(c.setsL, c.setsR); }
+      else { if (!c.setsN) continue; row.sets = c.setsN; }
+    } else {
+      const tl = (c.tl || 0) + (c.l || 0), tr = (c.tr || 0) + (c.r || 0), tn = (c.tn || 0) + (c.n || 0);
+      if (!tl && !tr && !tn && !c.sets) continue;
+      if (ex.perSide) { row.l = tl; row.r = tr; } else { row.n = tn; }
+      row.sets = c.sets;
+    }
+    rows.push(row);
+  }
+  if (rows.length === 0) { toast("Nothing to log yet"); return; }
+  if (!confirm("Log " + rows.length + " exercise(s) to history and reset counters?")) return;
+  state.history.push(...rows);
+  if (state.history.length > 300) state.history = state.history.slice(-300);
+  state.pendingHistory.push(...rows);
+  for (const ex of r.exercises) delete state.counts[ex.id];
+  save(); renderAll();
+  toast("Session logged ✓");
 });
 
 // ---------- Routine management ----------
 document.getElementById("routineSelect").addEventListener("change", (e) => {
   state.activeRoutineId = e.target.value;
   state.activeExerciseId = null;
+  stopTimer();
   save(); renderAll();
   document.getElementById("controlsCard").style.display = "none";
 });
-
 document.getElementById("addRoutineBtn").addEventListener("click", () => {
   const name = prompt("New routine name:");
   if (!name) return;
@@ -514,7 +835,6 @@ document.getElementById("addRoutineBtn").addEventListener("click", () => {
   state.activeExerciseId = null;
   save(); renderAll();
 });
-
 document.getElementById("routineMenuBtn").addEventListener("click", () => {
   const r = activeRoutine();
   const choice = prompt('Routine "' + r.name + '":\nType a new name to rename it,\nor type DELETE to remove it.', r.name);
@@ -522,9 +842,8 @@ document.getElementById("routineMenuBtn").addEventListener("click", () => {
   if (choice.trim() === "DELETE") {
     if (!confirm('Delete routine "' + r.name + '" and its exercises?')) return;
     state.routines = state.routines.filter(x => x.id !== r.id);
-    if (state.routines.length === 0) {
+    if (state.routines.length === 0)
       state.routines.push({ id: uid(), name: "My Routine", exercises: [] });
-    }
     state.activeRoutineId = state.routines[0].id;
     state.activeExerciseId = null;
   } else if (choice.trim() && choice.trim() !== r.name) {
@@ -533,22 +852,47 @@ document.getElementById("routineMenuBtn").addEventListener("click", () => {
   save(); renderAll();
 });
 
-// ---------- Modal (add/edit exercise) ----------
+// ---------- Exercise modal ----------
 let editingId = null;
+let mModeVal = "reps", mAspectVal = "16/9";
+
+function segInit(id, onPick) {
+  document.getElementById(id).addEventListener("click", (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    for (const b of e.currentTarget.querySelectorAll("button")) b.classList.remove("sel");
+    btn.classList.add("sel");
+    onPick(btn.dataset.v);
+  });
+}
+function segSet(id, val) {
+  for (const b of document.getElementById(id).querySelectorAll("button"))
+    b.classList.toggle("sel", b.dataset.v === val);
+}
+segInit("mMode", v => { mModeVal = v; syncModeFields(); });
+segInit("mAspect", v => { mAspectVal = v; });
+function syncModeFields() {
+  document.getElementById("mRepsWrap").style.display = mModeVal === "reps" ? "" : "none";
+  document.getElementById("mSecsWrap").style.display = mModeVal === "time" ? "" : "none";
+}
 
 function openModal(ex) {
   editingId = ex ? ex.id : null;
   document.getElementById("modalTitle").textContent = ex ? "Edit exercise" : "Add exercise";
   document.getElementById("mName").value = ex ? ex.name : "";
   document.getElementById("mUrl").value = ex ? "https://youtu.be/" + ex.videoId : "";
-  document.getElementById("mTarget").value = ex ? (ex.target || 0) : 10;
+  document.getElementById("mReps").value = ex ? (ex.reps || 10) : 10;
+  document.getElementById("mSecs").value = ex ? (ex.seconds || 30) : 30;
+  document.getElementById("mSets").value = ex ? (ex.sets || 1) : 3;
   document.getElementById("mPerSide").checked = ex ? !!ex.perSide : false;
+  mModeVal = ex ? (ex.mode || "reps") : "reps";
+  mAspectVal = ex ? (ex.aspect || "16/9") : "16/9";
+  segSet("mMode", mModeVal); segSet("mAspect", mAspectVal);
+  syncModeFields();
   document.getElementById("mDelete").style.display = ex ? "block" : "none";
   document.getElementById("modalOverlay").classList.add("show");
 }
-function closeModal() {
-  document.getElementById("modalOverlay").classList.remove("show");
-}
+function closeModal() { document.getElementById("modalOverlay").classList.remove("show"); }
 
 document.getElementById("addExBtn").addEventListener("click", () => openModal(null));
 document.getElementById("mCancel").addEventListener("click", closeModal);
@@ -559,7 +903,9 @@ document.getElementById("modalOverlay").addEventListener("click", (e) => {
 document.getElementById("mSave").addEventListener("click", () => {
   const name = document.getElementById("mName").value.trim();
   const vid = parseVideoId(document.getElementById("mUrl").value);
-  const target = parseInt(document.getElementById("mTarget").value, 10) || 0;
+  const reps = parseInt(document.getElementById("mReps").value, 10) || 0;
+  const seconds = Math.max(1, parseInt(document.getElementById("mSecs").value, 10) || 30);
+  const sets = Math.max(1, parseInt(document.getElementById("mSets").value, 10) || 1);
   const perSide = document.getElementById("mPerSide").checked;
   if (!vid) { alert("That doesn't look like a valid YouTube link or video ID."); return; }
   const r = activeRoutine();
@@ -567,16 +913,19 @@ document.getElementById("mSave").addEventListener("click", () => {
     const ex = r.exercises.find(e => e.id === editingId);
     if (ex) {
       const videoChanged = ex.videoId !== vid;
-      ex.name = name || ex.name;
-      ex.videoId = vid;
-      ex.target = target;
-      if (ex.perSide !== perSide) { ex.perSide = perSide; delete state.counts[ex.id]; }
+      const structureChanged = ex.perSide !== perSide || ex.mode !== mModeVal;
+      Object.assign(ex, { name: name || ex.name, videoId: vid, reps, seconds, sets,
+                          perSide, mode: mModeVal, aspect: mAspectVal });
+      if (structureChanged) delete state.counts[ex.id];
       if (videoChanged) { ex.start = 0; ex.end = null; }
-      if (state.activeExerciseId === ex.id && videoChanged) loadExerciseVideo(ex, false);
+      if (state.activeExerciseId === ex.id) {
+        applyVideoShape(ex);
+        if (videoChanged) loadExerciseVideo(ex, false);
+      }
     }
   } else {
-    const ex = { id: uid(), name: name || "Exercise", videoId: vid,
-                 start: 0, end: null, target, perSide };
+    const ex = { id: uid(), name: name || "Exercise", videoId: vid, start: 0, end: null,
+                 reps, seconds, sets, perSide, mode: mModeVal, aspect: mAspectVal };
     r.exercises.push(ex);
     state.activeExerciseId = ex.id;
     loadExerciseVideo(ex, false);
@@ -598,15 +947,108 @@ document.getElementById("mDelete").addEventListener("click", () => {
   save(); closeModal(); renderAll();
 });
 
+// ---------- Cloud sync ----------
+let pushTimer = null, pushing = false;
+
+function syncStatus(msg, cls) {
+  const el = document.getElementById("sStatus");
+  el.textContent = msg;
+  el.className = "syncstatus " + (cls || "");
+}
+
+function cloudPayload() {
+  const { sync, ...data } = state;   // don't store the endpoint URL in the sheet
+  return data;
+}
+
+async function pushCloud(manual) {
+  if (!state.sync.url || pushing) return;
+  pushing = true;
+  if (manual) syncStatus("Saving…");
+  try {
+    const res = await fetch(state.sync.url, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" }, // simple request: no CORS preflight
+      body: JSON.stringify({ data: cloudPayload(), newHistory: state.pendingHistory })
+    });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    state.pendingHistory = [];
+    localStorage.setItem(STORE_KEY, JSON.stringify(state)); // save without re-triggering push
+    const t = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    syncStatus("Saved to cloud at " + t, "ok");
+    if (manual) toast("Saved to cloud ✓");
+  } catch (e) {
+    syncStatus("Cloud save failed: " + e.message, "err");
+    if (manual) toast("Cloud save failed");
+  }
+  pushing = false;
+}
+
+async function pullCloud() {
+  if (!state.sync.url) { syncStatus("Enter your Apps Script URL first.", "err"); return; }
+  syncStatus("Loading…");
+  try {
+    const res = await fetch(state.sync.url);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const remote = await res.json();
+    if (!remote || !remote.routines) { syncStatus("No data in the cloud yet — save first.", "err"); return; }
+    if (!confirm("Replace the routines and history on this device with the cloud copy?")) { syncStatus(""); return; }
+    const sync = state.sync;
+    state = migrate(remote);
+    state.sync = sync;
+    state.pendingHistory = state.pendingHistory || [];
+    stopTimer();
+    localStorage.setItem(STORE_KEY, JSON.stringify(state));
+    const ex = activeExercise();
+    if (ex) loadExerciseVideo(ex, false);
+    else document.getElementById("playerPlaceholder").style.display = "flex";
+    renderAll();
+    syncStatus("Loaded from cloud ✓", "ok");
+    toast("Loaded from cloud ✓");
+  } catch (e) {
+    syncStatus("Load failed: " + e.message, "err");
+  }
+}
+
+function scheduleAutoPush() {
+  if (!state.sync || !state.sync.url || !state.sync.auto) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => pushCloud(false), 4000);
+}
+
+document.getElementById("syncBtn").addEventListener("click", () => {
+  document.getElementById("sUrl").value = state.sync.url || "";
+  document.getElementById("sAuto").checked = state.sync.auto !== false;
+  syncStatus(state.sync.url ? "" : "Not set up yet.");
+  document.getElementById("syncOverlay").classList.add("show");
+});
+document.getElementById("sClose").addEventListener("click", () =>
+  document.getElementById("syncOverlay").classList.remove("show"));
+document.getElementById("syncOverlay").addEventListener("click", (e) => {
+  if (e.target.id === "syncOverlay") e.target.classList.remove("show");
+});
+document.getElementById("sSave").addEventListener("click", () => {
+  state.sync.url = document.getElementById("sUrl").value.trim();
+  state.sync.auto = document.getElementById("sAuto").checked;
+  localStorage.setItem(STORE_KEY, JSON.stringify(state));
+  toast("Sync settings saved");
+  document.getElementById("syncOverlay").classList.remove("show");
+});
+document.getElementById("sPush").addEventListener("click", () => {
+  state.sync.url = document.getElementById("sUrl").value.trim();
+  pushCloud(true);
+});
+document.getElementById("sPull").addEventListener("click", () => {
+  state.sync.url = document.getElementById("sUrl").value.trim();
+  pullCloud();
+});
+
 // ---------- Init ----------
 renderAll();
-// Restore last active exercise's video (cued, not autoplaying)
 {
   const ex = activeExercise();
   if (ex) loadExerciseVideo(ex, false);
 }
-
-// Load YouTube IFrame API
 {
   const tag = document.createElement("script");
   tag.src = "https://www.youtube.com/iframe_api";
