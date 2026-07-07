@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#101418">
+<title>VI PT — Exercise Player</title>
+<style>
+  :root {
+    --bg: #101418;
+    --panel: #1a2027;
+    --panel2: #232b34;
+    --text: #e8edf2;
+    --muted: #8b98a5;
+    --accent: #4da3ff;
+    --green: #3ddc84;
+    --red: #ff5c5c;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { padding-bottom: 40px; }
+
+  header {
+    display: flex; gap: 8px; align-items: center;
+    padding: 10px 12px; background: var(--panel);
+  }
+  header select {
+    flex: 1; min-width: 0; font-size: 16px; padding: 10px;
+    background: var(--panel2); color: var(--text);
+    border: 1px solid #2f3a45; border-radius: var(--radius);
+  }
+  .iconbtn {
+    font-size: 18px; padding: 10px 12px; background: var(--panel2);
+    color: var(--text); border: 1px solid #2f3a45; border-radius: var(--radius);
+  }
+
+  #playerWrap { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; }
+  #playerWrap iframe, #player { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #playerPlaceholder {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: var(--muted); font-size: 15px; text-align: center; padding: 20px;
+    background: #000;
+  }
+
+  .section { padding: 10px 12px; }
+  .card { background: var(--panel); border-radius: var(--radius); padding: 10px; }
+
+  /* Marks / transport */
+  .markrow { display: flex; gap: 8px; }
+  .markrow + .markrow { margin-top: 8px; }
+  .markbtn {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 10px 4px; font-size: 15px; font-weight: 600;
+    background: var(--panel2); color: var(--text);
+    border: 1px solid #2f3a45; border-radius: var(--radius);
+  }
+  .markbtn .time { font-size: 13px; font-weight: 400; color: var(--accent); }
+  .nudge {
+    width: 44px; font-size: 15px; background: var(--panel2); color: var(--muted);
+    border: 1px solid #2f3a45; border-radius: var(--radius);
+  }
+  .bigbtn {
+    flex: 1; padding: 14px 4px; font-size: 17px; font-weight: 700;
+    background: var(--accent); color: #06121f; border: none; border-radius: var(--radius);
+  }
+  .toggle {
+    flex: 1; padding: 14px 4px; font-size: 17px; font-weight: 700;
+    background: var(--panel2); color: var(--muted);
+    border: 1px solid #2f3a45; border-radius: var(--radius);
+  }
+  .toggle.on { background: #14351f; color: var(--green); border-color: var(--green); }
+
+  /* Counters */
+  .counters { display: flex; gap: 10px; margin-top: 10px; }
+  .counter { flex: 1; text-align: center; }
+  .counter .tapbtn {
+    width: 100%; padding: 22px 0 16px; border: none; border-radius: var(--radius);
+    background: var(--panel2); color: var(--text); font-size: 16px;
+  }
+  .counter .tapbtn .num { display: block; font-size: 44px; font-weight: 800; line-height: 1.1; }
+  .counter .tapbtn .lbl { color: var(--muted); font-size: 14px; }
+  .counter .tapbtn .tgt { color: var(--muted); font-size: 14px; }
+  .counter .tapbtn.done { background: #14351f; }
+  .counter .tapbtn.done .num { color: var(--green); }
+  .counter .minus {
+    margin-top: 6px; width: 100%; padding: 8px; font-size: 18px;
+    background: transparent; color: var(--muted);
+    border: 1px solid #2f3a45; border-radius: var(--radius);
+  }
+
+  /* Exercise list */
+  .exlist { display: flex; flex-direction: column; gap: 8px; }
+  .exitem {
+    display: flex; align-items: center; gap: 10px; padding: 12px;
+    background: var(--panel); border-radius: var(--radius); border: 1px solid transparent;
+  }
+  .exitem.active { border-color: var(--accent); }
+  .exitem .info { flex: 1; min-width: 0; }
+  .exitem .name { font-weight: 600; font-size: 16px; }
+  .exitem .meta { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .exitem .progress { font-size: 15px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+  .exitem .progress.done { color: var(--green); }
+  .exitem .edit { font-size: 16px; padding: 8px; background: transparent; border: none; color: var(--muted); }
+
+  .rowbtns { display: flex; gap: 8px; margin-top: 10px; }
+  .outbtn {
+    flex: 1; padding: 12px; font-size: 15px; font-weight: 600;
+    background: transparent; color: var(--accent);
+    border: 1px solid var(--accent); border-radius: var(--radius);
+  }
+  .outbtn.gray { color: var(--muted); border-color: #2f3a45; }
+
+  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 0.08em;
+       color: var(--muted); margin: 14px 0 8px; }
+
+  /* Modal */
+  #modalOverlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    display: none; align-items: flex-end; z-index: 50;
+  }
+  #modalOverlay.show { display: flex; }
+  #modal {
+    background: var(--panel); width: 100%; border-radius: 16px 16px 0 0;
+    padding: 16px 16px 28px; max-height: 85vh; overflow-y: auto;
+  }
+  #modal h3 { margin: 0 0 12px; font-size: 18px; }
+  #modal label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
+  #modal input[type=text], #modal input[type=number], #modal input[type=url] {
+    width: 100%; padding: 12px; font-size: 16px;
+    background: var(--panel2); color: var(--text);
+    border: 1px solid #2f3a45; border-radius: var(--radius);
+  }
+  .checkrow { display: flex; align-items: center; gap: 10px; margin-top: 14px; font-size: 16px; }
+  .checkrow input { width: 22px; height: 22px; }
+  .modalbtns { display: flex; gap: 8px; margin-top: 20px; }
+  .modalbtns .save { flex: 2; padding: 14px; font-size: 16px; font-weight: 700;
+    background: var(--accent); color: #06121f; border: none; border-radius: var(--radius); }
+  .modalbtns .cancel { flex: 1; padding: 14px; font-size: 16px;
+    background: var(--panel2); color: var(--text); border: 1px solid #2f3a45; border-radius: var(--radius); }
+  .modalbtns .delete { flex: 1; padding: 14px; font-size: 16px;
+    background: transparent; color: var(--red); border: 1px solid var(--red); border-radius: var(--radius); }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+    background: var(--panel2); color: var(--text); padding: 10px 18px;
+    border-radius: 20px; font-size: 14px; opacity: 0; transition: opacity 0.25s;
+    pointer-events: none; z-index: 100; border: 1px solid #2f3a45;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<header>
+  <select id="routineSelect"></select>
+  <button class="iconbtn" id="addRoutineBtn" title="New routine">＋</button>
+  <button class="iconbtn" id="routineMenuBtn" title="Routine options">⋯</button>
+</header>
+
+<div id="playerWrap">
+  <div id="player"></div>
+  <div id="playerPlaceholder">Add an exercise below,<br>then tap it to load its video.</div>
+</div>
+
+<div class="section">
+  <div class="card" id="controlsCard" style="display:none">
+    <div class="markrow">
+      <button class="nudge" id="startMinus">−1</button>
+      <button class="markbtn" id="setStartBtn">Set Start <span class="time" id="startTime">–</span></button>
+      <button class="nudge" id="startPlus">+1</button>
+      <button class="nudge" id="endMinus">−1</button>
+      <button class="markbtn" id="setEndBtn">Set End <span class="time" id="endTime">–</span></button>
+      <button class="nudge" id="endPlus">+1</button>
+    </div>
+    <div class="markrow">
+      <button class="bigbtn" id="restartBtn">⟲ Restart at Start</button>
+      <button class="toggle" id="loopBtn">Loop</button>
+    </div>
+
+    <div class="counters" id="countersWrap"></div>
+    <div class="rowbtns">
+      <button class="outbtn gray" id="resetExBtn">Reset this exercise</button>
+    </div>
+  </div>
+
+  <h2>Exercises</h2>
+  <div class="exlist" id="exList"></div>
+  <div class="rowbtns">
+    <button class="outbtn" id="addExBtn">＋ Add exercise</button>
+    <button class="outbtn gray" id="resetAllBtn">Reset all counts</button>
+  </div>
+</div>
+
+<!-- Add/Edit exercise modal -->
+<div id="modalOverlay">
+  <div id="modal">
+    <h3 id="modalTitle">Add exercise</h3>
+    <label>Name</label>
+    <input type="text" id="mName" placeholder="e.g. Banded shoulder rotation">
+    <label>YouTube URL or video ID</label>
+    <input type="url" id="mUrl" placeholder="https://youtube.com/watch?v=…">
+    <label>Target reps (0 = no target)</label>
+    <input type="number" id="mTarget" min="0" inputmode="numeric" value="10">
+    <div class="checkrow">
+      <input type="checkbox" id="mPerSide">
+      <label for="mPerSide" style="margin:0;color:var(--text)">Count per side (left / right)</label>
+    </div>
+    <div class="modalbtns">
+      <button class="delete" id="mDelete" style="display:none">Delete</button>
+      <button class="cancel" id="mCancel">Cancel</button>
+      <button class="save" id="mSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+// ---------- State ----------
+const STORE_KEY = "vipt-v1";
+
+function uid() { return Math.random().toString(36).slice(2, 10); }
+
+function defaultState() {
+  const rid = uid();
+  return {
+    routines: [{ id: rid, name: "My Routine", exercises: [] }],
+    activeRoutineId: rid,
+    activeExerciseId: null,
+    counts: {},   // exerciseId -> {l, r} or {n}
+    loop: false
+  };
+}
+
+let state = load();
+function load() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return defaultState();
+}
+function save() { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+
+function activeRoutine() {
+  return state.routines.find(r => r.id === state.activeRoutineId) || state.routines[0];
+}
+function activeExercise() {
+  const r = activeRoutine();
+  return r ? r.exercises.find(e => e.id === state.activeExerciseId) : null;
+}
+function countsFor(ex) {
+  if (!state.counts[ex.id]) state.counts[ex.id] = ex.perSide ? { l: 0, r: 0 } : { n: 0 };
+  return state.counts[ex.id];
+}
+
+// ---------- YouTube player ----------
+let player = null, playerReady = false, pendingLoad = null;
+
+window.onYouTubeIframeAPIReady = function () {
+  player = new YT.Player("player", {
+    playerVars: { playsinline: 1, rel: 0, modestbranding: 1 },
+    events: {
+      onReady: () => {
+        playerReady = true;
+        if (pendingLoad) { doLoad(pendingLoad); pendingLoad = null; }
+      }
+    }
+  });
+};
+
+function loadExerciseVideo(ex, autoplay) {
+  const req = { videoId: ex.videoId, start: ex.start || 0, autoplay };
+  if (playerReady) doLoad(req); else pendingLoad = req;
+  document.getElementById("playerPlaceholder").style.display = "none";
+}
+function doLoad(req) {
+  if (req.autoplay) player.loadVideoById({ videoId: req.videoId, startSeconds: req.start });
+  else player.cueVideoById({ videoId: req.videoId, startSeconds: req.start });
+}
+
+// Loop watcher
+setInterval(() => {
+  if (!playerReady || !state.loop) return;
+  const ex = activeExercise();
+  if (!ex || ex.end == null) return;
+  try {
+    if (player.getPlayerState() === YT.PlayerState.PLAYING &&
+        player.getCurrentTime() >= ex.end) {
+      player.seekTo(ex.start || 0, true);
+    }
+  } catch (e) {}
+}, 300);
+
+// ---------- Helpers ----------
+function parseVideoId(input) {
+  if (!input) return null;
+  input = input.trim();
+  const m = input.match(/(?:youtu\.be\/|[?&]v=|shorts\/|embed\/|live\/)([\w-]{11})/);
+  if (m) return m[1];
+  if (/^[\w-]{11}$/.test(input)) return input;
+  return null;
+}
+function fmt(t) {
+  if (t == null) return "–";
+  t = Math.max(0, t);
+  const m = Math.floor(t / 60), s = Math.floor(t % 60);
+  return m + ":" + String(s).padStart(2, "0");
+}
+function toast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove("show"), 1600);
+}
+
+// ---------- Rendering ----------
+function renderRoutines() {
+  const sel = document.getElementById("routineSelect");
+  sel.innerHTML = "";
+  for (const r of state.routines) {
+    const opt = document.createElement("option");
+    opt.value = r.id;
+    opt.textContent = r.name;
+    if (r.id === state.activeRoutineId) opt.selected = true;
+    sel.appendChild(opt);
+  }
+}
+
+function renderControls() {
+  const ex = activeExercise();
+  const card = document.getElementById("controlsCard");
+  if (!ex) { card.style.display = "none"; return; }
+  card.style.display = "block";
+
+  document.getElementById("startTime").textContent = fmt(ex.start);
+  document.getElementById("endTime").textContent = fmt(ex.end);
+
+  const loopBtn = document.getElementById("loopBtn");
+  loopBtn.classList.toggle("on", state.loop);
+  loopBtn.textContent = state.loop ? "Loop ✓" : "Loop";
+
+  // Counters
+  const wrap = document.getElementById("countersWrap");
+  wrap.innerHTML = "";
+  const c = countsFor(ex);
+  const mk = (label, key) => {
+    const div = document.createElement("div");
+    div.className = "counter";
+    const val = c[key];
+    const hitTarget = ex.target > 0 && val >= ex.target;
+    div.innerHTML =
+      '<button class="tapbtn' + (hitTarget ? " done" : "") + '">' +
+        '<span class="lbl">' + label + '</span>' +
+        '<span class="num">' + val + '</span>' +
+        (ex.target > 0 ? '<span class="tgt">of ' + ex.target + '</span>' : '') +
+      '</button>' +
+      '<button class="minus">−1</button>';
+    div.querySelector(".tapbtn").addEventListener("click", () => {
+      c[key]++;
+      save(); renderControls(); renderExercises();
+      if (navigator.vibrate) navigator.vibrate(30);
+    });
+    div.querySelector(".minus").addEventListener("click", () => {
+      c[key] = Math.max(0, c[key] - 1);
+      save(); renderControls(); renderExercises();
+    });
+    wrap.appendChild(div);
+  };
+  if (ex.perSide) { mk("Left", "l"); mk("Right", "r"); }
+  else mk("Reps", "n");
+}
+
+function exProgress(ex) {
+  const c = state.counts[ex.id];
+  if (!c) return ex.target > 0 ? "0/" + ex.target : "0";
+  if (ex.perSide) {
+    const t = ex.target > 0 ? "/" + ex.target : "";
+    return "L " + c.l + t + " · R " + c.r + t;
+  }
+  return c.n + (ex.target > 0 ? "/" + ex.target : "");
+}
+function exDone(ex) {
+  const c = state.counts[ex.id];
+  if (!c || !(ex.target > 0)) return false;
+  return ex.perSide ? (c.l >= ex.target && c.r >= ex.target) : c.n >= ex.target;
+}
+
+function renderExercises() {
+  const list = document.getElementById("exList");
+  list.innerHTML = "";
+  const r = activeRoutine();
+  if (!r) return;
+  if (r.exercises.length === 0) {
+    const p = document.createElement("div");
+    p.style.cssText = "color:var(--muted);font-size:14px;padding:8px 4px;";
+    p.textContent = "No exercises yet. Tap “Add exercise” and paste a YouTube link.";
+    list.appendChild(p);
+  }
+  for (const ex of r.exercises) {
+    const item = document.createElement("div");
+    item.className = "exitem" + (ex.id === state.activeExerciseId ? " active" : "");
+    const done = exDone(ex);
+    item.innerHTML =
+      '<div class="info">' +
+        '<div class="name">' + escapeHtml(ex.name) + '</div>' +
+        '<div class="meta">' + fmt(ex.start) + " → " + fmt(ex.end) +
+          (ex.perSide ? " · per side" : "") + '</div>' +
+      '</div>' +
+      '<div class="progress' + (done ? " done" : "") + '">' +
+        (done ? "✓ " : "") + exProgress(ex) + '</div>' +
+      '<button class="edit">✎</button>';
+    item.querySelector(".info").addEventListener("click", () => selectExercise(ex.id));
+    item.querySelector(".progress").addEventListener("click", () => selectExercise(ex.id));
+    item.querySelector(".edit").addEventListener("click", (e) => {
+      e.stopPropagation();
+      openModal(ex);
+    });
+    list.appendChild(item);
+  }
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, ch => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[ch]);
+}
+
+function renderAll() { renderRoutines(); renderControls(); renderExercises(); }
+
+// ---------- Actions ----------
+function selectExercise(id) {
+  const r = activeRoutine();
+  const ex = r.exercises.find(e => e.id === id);
+  if (!ex) return;
+  state.activeExerciseId = id;
+  save();
+  loadExerciseVideo(ex, true);
+  renderControls(); renderExercises();
+}
+
+document.getElementById("setStartBtn").addEventListener("click", () => {
+  const ex = activeExercise();
+  if (!ex || !playerReady) return;
+  ex.start = Math.floor(player.getCurrentTime() * 10) / 10;
+  if (ex.end != null && ex.end <= ex.start) ex.end = null;
+  save(); renderControls(); renderExercises();
+  toast("Start set to " + fmt(ex.start));
+});
+document.getElementById("setEndBtn").addEventListener("click", () => {
+  const ex = activeExercise();
+  if (!ex || !playerReady) return;
+  ex.end = Math.floor(player.getCurrentTime() * 10) / 10;
+  save(); renderControls(); renderExercises();
+  toast("End set to " + fmt(ex.end));
+});
+
+function nudge(field, delta) {
+  const ex = activeExercise();
+  if (!ex || ex[field] == null) return;
+  ex[field] = Math.max(0, ex[field] + delta);
+  save(); renderControls(); renderExercises();
+}
+document.getElementById("startMinus").addEventListener("click", () => nudge("start", -1));
+document.getElementById("startPlus").addEventListener("click", () => nudge("start", 1));
+document.getElementById("endMinus").addEventListener("click", () => nudge("end", -1));
+document.getElementById("endPlus").addEventListener("click", () => nudge("end", 1));
+
+document.getElementById("restartBtn").addEventListener("click", () => {
+  const ex = activeExercise();
+  if (!ex || !playerReady) return;
+  player.seekTo(ex.start || 0, true);
+  player.playVideo();
+});
+
+document.getElementById("loopBtn").addEventListener("click", () => {
+  state.loop = !state.loop;
+  save(); renderControls();
+});
+
+document.getElementById("resetExBtn").addEventListener("click", () => {
+  const ex = activeExercise();
+  if (!ex) return;
+  delete state.counts[ex.id];
+  save(); renderControls(); renderExercises();
+});
+
+document.getElementById("resetAllBtn").addEventListener("click", () => {
+  if (!confirm("Reset all counts for this routine?")) return;
+  const r = activeRoutine();
+  for (const ex of r.exercises) delete state.counts[ex.id];
+  save(); renderControls(); renderExercises();
+});
+
+// ---------- Routine management ----------
+document.getElementById("routineSelect").addEventListener("change", (e) => {
+  state.activeRoutineId = e.target.value;
+  state.activeExerciseId = null;
+  save(); renderAll();
+  document.getElementById("controlsCard").style.display = "none";
+});
+
+document.getElementById("addRoutineBtn").addEventListener("click", () => {
+  const name = prompt("New routine name:");
+  if (!name) return;
+  const r = { id: uid(), name: name.trim(), exercises: [] };
+  state.routines.push(r);
+  state.activeRoutineId = r.id;
+  state.activeExerciseId = null;
+  save(); renderAll();
+});
+
+document.getElementById("routineMenuBtn").addEventListener("click", () => {
+  const r = activeRoutine();
+  const choice = prompt('Routine "' + r.name + '":\nType a new name to rename it,\nor type DELETE to remove it.', r.name);
+  if (choice == null) return;
+  if (choice.trim() === "DELETE") {
+    if (!confirm('Delete routine "' + r.name + '" and its exercises?')) return;
+    state.routines = state.routines.filter(x => x.id !== r.id);
+    if (state.routines.length === 0) {
+      state.routines.push({ id: uid(), name: "My Routine", exercises: [] });
+    }
+    state.activeRoutineId = state.routines[0].id;
+    state.activeExerciseId = null;
+  } else if (choice.trim() && choice.trim() !== r.name) {
+    r.name = choice.trim();
+  }
+  save(); renderAll();
+});
+
+// ---------- Modal (add/edit exercise) ----------
+let editingId = null;
+
+function openModal(ex) {
+  editingId = ex ? ex.id : null;
+  document.getElementById("modalTitle").textContent = ex ? "Edit exercise" : "Add exercise";
+  document.getElementById("mName").value = ex ? ex.name : "";
+  document.getElementById("mUrl").value = ex ? "https://youtu.be/" + ex.videoId : "";
+  document.getElementById("mTarget").value = ex ? (ex.target || 0) : 10;
+  document.getElementById("mPerSide").checked = ex ? !!ex.perSide : false;
+  document.getElementById("mDelete").style.display = ex ? "block" : "none";
+  document.getElementById("modalOverlay").classList.add("show");
+}
+function closeModal() {
+  document.getElementById("modalOverlay").classList.remove("show");
+}
+
+document.getElementById("addExBtn").addEventListener("click", () => openModal(null));
+document.getElementById("mCancel").addEventListener("click", closeModal);
+document.getElementById("modalOverlay").addEventListener("click", (e) => {
+  if (e.target.id === "modalOverlay") closeModal();
+});
+
+document.getElementById("mSave").addEventListener("click", () => {
+  const name = document.getElementById("mName").value.trim();
+  const vid = parseVideoId(document.getElementById("mUrl").value);
+  const target = parseInt(document.getElementById("mTarget").value, 10) || 0;
+  const perSide = document.getElementById("mPerSide").checked;
+  if (!vid) { alert("That doesn't look like a valid YouTube link or video ID."); return; }
+  const r = activeRoutine();
+  if (editingId) {
+    const ex = r.exercises.find(e => e.id === editingId);
+    if (ex) {
+      const videoChanged = ex.videoId !== vid;
+      ex.name = name || ex.name;
+      ex.videoId = vid;
+      ex.target = target;
+      if (ex.perSide !== perSide) { ex.perSide = perSide; delete state.counts[ex.id]; }
+      if (videoChanged) { ex.start = 0; ex.end = null; }
+      if (state.activeExerciseId === ex.id && videoChanged) loadExerciseVideo(ex, false);
+    }
+  } else {
+    const ex = { id: uid(), name: name || "Exercise", videoId: vid,
+                 start: 0, end: null, target, perSide };
+    r.exercises.push(ex);
+    state.activeExerciseId = ex.id;
+    loadExerciseVideo(ex, false);
+  }
+  save(); closeModal(); renderAll();
+});
+
+document.getElementById("mDelete").addEventListener("click", () => {
+  if (!editingId) return;
+  if (!confirm("Delete this exercise?")) return;
+  const r = activeRoutine();
+  r.exercises = r.exercises.filter(e => e.id !== editingId);
+  delete state.counts[editingId];
+  if (state.activeExerciseId === editingId) {
+    state.activeExerciseId = null;
+    document.getElementById("controlsCard").style.display = "none";
+    document.getElementById("playerPlaceholder").style.display = "flex";
+  }
+  save(); closeModal(); renderAll();
+});
+
+// ---------- Init ----------
+renderAll();
+// Restore last active exercise's video (cued, not autoplaying)
+{
+  const ex = activeExercise();
+  if (ex) loadExerciseVideo(ex, false);
+}
+
+// Load YouTube IFrame API
+{
+  const tag = document.createElement("script");
+  tag.src = "https://www.youtube.com/iframe_api";
+  document.head.appendChild(tag);
+}
+</script>
+</body>
+</html>
