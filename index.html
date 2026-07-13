@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <meta name="theme-color" content="#101418">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <title>VI PT — Exercise Player</title>
 <style>
   :root {
@@ -502,7 +505,9 @@ function escapeHtml(s) {
 }
 
 // ---------- Timer (timed holds) ----------
-let timer = null; // {exId, side, remaining, iv}
+// Wall-clock based: remaining time comes from an end timestamp, not tick
+// counting, so a locked screen or throttled tab can't stretch the hold.
+let timer = null; // {exId, side, endsAt, shown, tick, iv}
 
 function stopTimer() {
   if (timer) { clearInterval(timer.iv); timer = null; }
@@ -510,23 +515,32 @@ function stopTimer() {
 function startTimer(ex, side) {
   if (timer && timer.exId === ex.id && timer.side === side) { stopTimer(); renderControls(); return; }
   stopTimer();
-  timer = { exId: ex.id, side, remaining: ex.seconds, iv: null };
-  timer.iv = setInterval(() => {
-    timer.remaining--;
-    if (timer.remaining <= 0) {
+  timer = { exId: ex.id, side, endsAt: Date.now() + ex.seconds * 1000, shown: ex.seconds, tick: null, iv: null };
+  timer.tick = () => {
+    if (!timer) return;
+    const remaining = Math.ceil((timer.endsAt - Date.now()) / 1000);
+    if (remaining <= 0) {
       const c = countsFor(ex);
       if (side === "l") c.setsL++; else if (side === "r") c.setsR++; else c.setsN++;
       stopTimer();
       vib([200, 100, 200]);
       save(); renderControls(); renderExercises();
       toast("Set done!");
-    } else {
-      if (timer.remaining <= 3) vib(40);
+      return;
+    }
+    if (remaining !== timer.shown) {
+      timer.shown = remaining;
+      if (remaining <= 3) vib(40);
       renderControls();
     }
-  }, 1000);
+  };
+  timer.iv = setInterval(timer.tick, 250);
   renderControls();
 }
+// Catch up immediately when the app comes back to the foreground.
+document.addEventListener("visibilitychange", () => {
+  if (timer && document.visibilityState === "visible") timer.tick();
+});
 
 // ---------- Progress / doneness ----------
 function exDone(ex) {
@@ -597,7 +611,7 @@ function renderControls() {
       div.innerHTML =
         '<button class="tapbtn' + (running ? " timing" : hit ? " done" : "") + '">' +
           '<span class="lbl">' + label + '</span>' +
-          '<span class="num">' + (running ? timer.remaining : ex.seconds + "s") + '</span>' +
+          '<span class="num">' + (running ? timer.shown : ex.seconds + "s") + '</span>' +
           '<span class="tgt">' + c[setsKey] + " of " + ex.sets + " sets</span>" +
         '</button>' +
         '<button class="minus">− set</button>';
@@ -1043,8 +1057,28 @@ document.getElementById("sPull").addEventListener("click", () => {
   pullCloud();
 });
 
+// ---------- Wake lock (keep the screen on while working out) ----------
+// The OS releases the lock whenever the page is hidden, so re-request it
+// every time the app returns to the foreground. Failures (unsupported
+// browser, battery saver) are fine: the wall-clock timer still self-corrects.
+let wakeLock = null;
+async function acquireWakeLock() {
+  if (!("wakeLock" in navigator) || document.visibilityState !== "visible") return;
+  try {
+    wakeLock = await navigator.wakeLock.request("screen");
+    wakeLock.addEventListener("release", () => { wakeLock = null; });
+  } catch (e) {}
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") acquireWakeLock();
+});
+
 // ---------- Init ----------
 renderAll();
+acquireWakeLock();
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
 {
   const ex = activeExercise();
   if (ex) loadExerciseVideo(ex, false);

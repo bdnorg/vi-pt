@@ -1,9 +1,10 @@
 # VI PT — Exercise Video Player
 
-A single-file web app for following exercise videos on YouTube: per-exercise
+A no-build web app for following exercise videos on YouTube: per-exercise
 start/end marks with looping, rep and set counters (per side or not), timed
 holds, routines, session history, and optional cloud sync to your own Google
-Sheet.
+Sheet. All app logic lives in `index.html`; `manifest.webmanifest`, `sw.js`,
+and the icon PNGs exist only to make it installable as a PWA.
 
 **Live app:** https://bdnorg.github.io/vi-pt/
 
@@ -21,6 +22,18 @@ Works best in Chrome on Android signed into a YouTube Premium account
   the counters for next time.
 - **☁ Cloud sync** — backs everything up to a Google Sheet you own
   (see below).
+- The screen stays awake while the app is open (Wake Lock), so timed
+  holds and rest between sets won't be interrupted by the phone locking.
+  Timers are wall-clock based, so even if the screen does turn off the
+  countdown stays accurate.
+
+## Install as an app
+
+The app is a PWA. In Chrome on Android, open
+https://bdnorg.github.io/vi-pt/ and choose **⋮ → Add to Home screen →
+Install**. It then launches full-screen from its own icon, and the app
+shell loads even when offline (the YouTube videos themselves still need
+a connection).
 
 ## Cloud sync setup
 
