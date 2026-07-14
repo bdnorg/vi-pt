@@ -16,6 +16,13 @@ Works best in Chrome on Android signed into a YouTube Premium account
 - **✏️ Edit mode** — add/edit/delete exercises and routines, set start/end
   marks from the current playback position, choose reps-per-set or a timed
   hold, number of sets, per-side counting, and the video's aspect ratio.
+  Pasting a video link auto-detects its shape (YouTube Shorts and other
+  portrait videos select 9:16 automatically); tapping an aspect button
+  yourself always overrides the detection.
+- **Resizable video** — drag the bar under the video to make it bigger or
+  smaller. It stays centered and crops the left/right edges once it's
+  wider than the screen. Double-tap the bar to go back to automatic
+  sizing.
 - **Normal mode** — just work out. The 🎬/🔢 button switches between a
   big-video view and a big-buttons view.
 - **✓ Finish & log session** — records what you did to history and resets

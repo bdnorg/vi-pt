@@ -45,9 +45,15 @@
   .iconbtn.editon { background: #3d2f14; border-color: var(--amber); color: var(--amber); }
 
   /* Video */
-  #videoArea { display: flex; justify-content: center; background: #000; }
-  #playerWrap { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; }
+  #videoArea { display: flex; justify-content: center; background: #000; overflow: hidden; }
+  #playerWrap { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; flex-shrink: 0; }
   #playerWrap iframe, #player { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .draghandle {
+    display: flex; justify-content: center; align-items: center;
+    height: 22px; background: var(--panel); cursor: ns-resize; touch-action: none;
+  }
+  .draghandle span { width: 46px; height: 5px; border-radius: 3px; background: #3a4754; }
+  body.view-buttons .draghandle { display: none; }
   #playerPlaceholder {
     position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
     color: var(--muted); font-size: 15px; text-align: center; padding: 20px; background: #000;
@@ -229,6 +235,7 @@
     <div id="playerPlaceholder">Add an exercise (✏️ edit mode),<br>then tap it to load its video.</div>
   </div>
 </div>
+<div class="draghandle" id="dragHandle" title="Drag to resize the video · double-tap to reset"><span></span></div>
 
 <div class="section">
   <div class="card" id="controlsCard" style="display:none">
@@ -376,7 +383,7 @@ function defaultState() {
     configDirty: false,  // exercise/routine setup changed since last push
     sessionNote: "",     // draft note, attached to the session on finish
     loop: false,
-    ui: { mode: "normal", view: "video" },
+    ui: { mode: "normal", view: "video", videoH: null },  // videoH: dragged video height in px, null = auto
     sync: { url: "", auto: true }
   };
 }
@@ -470,10 +477,17 @@ function applyVideoShape(ex) {
   const aspect = (ex && ex.aspect) || "16/9";
   wrap.style.aspectRatio = aspect;
   const [w, h] = aspect.split("/").map(Number);
+  wrap.style.height = "";
   if (state.ui.view === "buttons") {
     // small video strip
     wrap.style.width = (175 * (w / h)) + "px";
     wrap.style.maxWidth = "100%";
+  } else if (state.ui.videoH) {
+    // user-dragged size: fixed height, width follows the aspect ratio and
+    // may overflow the screen — #videoArea crops both sides equally
+    wrap.style.height = state.ui.videoH + "px";
+    wrap.style.width = (state.ui.videoH * (w / h)) + "px";
+    wrap.style.maxWidth = "";
   } else if (h > w) {
     // portrait in big view: cap height, center
     wrap.style.width = "min(100%, calc(68vh * " + (w / h) + "))";
@@ -482,6 +496,31 @@ function applyVideoShape(ex) {
     wrap.style.width = "100%";
     wrap.style.maxWidth = "";
   }
+}
+
+// Drag the bar under the video to resize it; double-tap to reset to auto.
+{
+  const handle = document.getElementById("dragHandle");
+  let drag = null;
+  handle.addEventListener("pointerdown", (e) => {
+    drag = { y: e.clientY, h: document.getElementById("playerWrap").getBoundingClientRect().height };
+    handle.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  handle.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    state.ui.videoH = Math.round(Math.min(Math.max(drag.h + (e.clientY - drag.y), 110),
+                                          window.innerHeight * 0.85));
+    applyVideoShape(activeExercise());
+  });
+  const endDrag = () => { if (drag) { drag = null; save(); } };
+  handle.addEventListener("pointerup", endDrag);
+  handle.addEventListener("pointercancel", endDrag);
+  handle.addEventListener("dblclick", () => {
+    state.ui.videoH = null;
+    save(); applyVideoShape(activeExercise());
+    toast("Video size reset");
+  });
 }
 
 // Loop watcher
@@ -511,6 +550,11 @@ function fmt(t) {
   t = Math.max(0, t);
   const m = Math.floor(t / 60), s = Math.floor(t % 60);
   return m + ":" + String(s).padStart(2, "0");
+}
+function fmtDateTime(d) {   // local time, "YYYY-MM-DD HH:MM"
+  const p = n => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) +
+         " " + p(d.getHours()) + ":" + p(d.getMinutes());
 }
 function toast(msg) {
   const el = document.getElementById("toast");
@@ -827,7 +871,7 @@ document.getElementById("resetAllBtn").addEventListener("click", () => {
 // Finish session: log history, reset counts
 document.getElementById("finishBtn").addEventListener("click", () => {
   const r = activeRoutine();
-  const date = new Date().toISOString().slice(0, 16).replace("T", " ");
+  const date = fmtDateTime(new Date());
   const rows = [];
   for (const ex of r.exercises) {
     const c = state.counts[ex.id];
@@ -895,7 +939,7 @@ document.getElementById("routineMenuBtn").addEventListener("click", () => {
 
 // ---------- Exercise modal ----------
 let editingId = null;
-let mModeVal = "reps", mAspectVal = "16/9";
+let mModeVal = "reps", mAspectVal = "16/9", mAspectTouched = false;
 
 function segInit(id, onPick) {
   document.getElementById(id).addEventListener("click", (e) => {
@@ -911,7 +955,34 @@ function segSet(id, val) {
     b.classList.toggle("sel", b.dataset.v === val);
 }
 segInit("mMode", v => { mModeVal = v; syncModeFields(); });
-segInit("mAspect", v => { mAspectVal = v; });
+segInit("mAspect", v => { mAspectVal = v; mAspectTouched = true; });
+
+// Auto-detect the video's shape from the pasted URL: /shorts/ links are
+// portrait, and YouTube's oEmbed reports player dimensions for the rest.
+// A manual tap on an aspect button always wins.
+function applyDetectedAspect(aspect) {
+  if (mAspectTouched) return;
+  mAspectVal = aspect;
+  segSet("mAspect", aspect);
+}
+async function detectAspect(input) {
+  const vid = parseVideoId(input);
+  if (!vid) return;
+  if (/shorts\//.test(input)) { applyDetectedAspect("9/16"); return; }
+  try {
+    const res = await fetch("https://www.youtube.com/oembed?url=" +
+      encodeURIComponent("https://www.youtube.com/watch?v=" + vid) + "&format=json");
+    if (!res.ok) return;
+    const d = await res.json();
+    if (!d.width || !d.height) return;
+    const ratio = d.width / d.height;
+    let best = null;
+    for (const o of [["16/9", 16 / 9], ["4/3", 4 / 3], ["1/1", 1], ["9/16", 9 / 16]])
+      if (!best || Math.abs(o[1] - ratio) < Math.abs(best[1] - ratio)) best = o;
+    applyDetectedAspect(best[0]);
+  } catch (e) {}
+}
+document.getElementById("mUrl").addEventListener("change", (e) => detectAspect(e.target.value));
 function syncModeFields() {
   document.getElementById("mRepsWrap").style.display = mModeVal === "reps" ? "" : "none";
   document.getElementById("mSecsWrap").style.display = mModeVal === "time" ? "" : "none";
@@ -928,6 +999,7 @@ function openModal(ex) {
   document.getElementById("mPerSide").checked = ex ? !!ex.perSide : false;
   mModeVal = ex ? (ex.mode || "reps") : "reps";
   mAspectVal = ex ? (ex.aspect || "16/9") : "16/9";
+  mAspectTouched = false;
   segSet("mMode", mModeVal); segSet("mAspect", mAspectVal);
   syncModeFields();
   document.getElementById("mDelete").style.display = ex ? "block" : "none";
@@ -949,6 +1021,9 @@ document.getElementById("mSave").addEventListener("click", () => {
   const sets = Math.max(1, parseInt(document.getElementById("mSets").value, 10) || 1);
   const perSide = document.getElementById("mPerSide").checked;
   if (!vid) { alert("That doesn't look like a valid YouTube link or video ID."); return; }
+  // Belt for save-before-blur: a /shorts/ link is portrait even if the
+  // async oEmbed detection didn't get a chance to run.
+  if (!mAspectTouched && /shorts\//.test(document.getElementById("mUrl").value)) mAspectVal = "9/16";
   const r = activeRoutine();
   if (editingId) {
     const ex = r.exercises.find(e => e.id === editingId);
@@ -1088,10 +1163,7 @@ function toHistoryRow(h) {
 
 function normalizeSheetDate(v) {
   const d = new Date(v);   // sheet cells come back as ISO strings
-  if (isNaN(d)) return String(v);
-  const p = n => String(n).padStart(2, "0");
-  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) +
-         " " + p(d.getHours()) + ":" + p(d.getMinutes());
+  return isNaN(d) ? String(v) : fmtDateTime(d);
 }
 
 function importHistoryRows(headerRow, rows) {
