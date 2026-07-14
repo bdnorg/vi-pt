@@ -50,10 +50,40 @@ One-time, about two minutes:
 5. In the app, tap **☁**, paste the URL, and tap **Save settings**, then
    **⬆ Save to cloud now**.
 
-From then on the app auto-saves a few seconds after any change, and every
-finished session is appended as a row to the sheet's **History** tab. On a
-new device (or after clearing browser data), paste the same URL and tap
-**⬇ Load from cloud**.
+## How the spreadsheet is laid out
+
+- **Exercises** tab — one row per exercise, one column per setting:
+  `Routine, Exercise, Video, Type, Reps, Seconds, Sets, Per side, Start,
+  End, Aspect, ID`. `Type` is `reps` or `hold`; `Start`/`End` are seconds
+  (or `m:ss`); `Aspect` is `16:9`, `4:3`, `1:1`, or `9:16`.
+- **History** tab — one row per exercise per finished session:
+  `Date, Routine, Exercise, Type, Left, Right, Reps, Sets`. Append-only;
+  this is the full log (the app only shows the recent tail).
+
+**You can edit the sheet directly.** Change any exercise's settings, add
+new rows (leave `ID` blank — the app assigns one), reorder or re-group
+them under routine names, then tap **⬇ Load from cloud** in the app.
+Columns are matched by header name, so reordering columns is fine too.
+
+The app writes the Exercises tab when you change setup in the app (edit
+mode, marks) and appends to History when you finish a session. Rep counts
+during a workout stay on the device, so working out never overwrites
+sheet edits. Sync is still last-write-wins for the Exercises tab: if you
+edit the sheet *and* the app's edit mode at the same time, whichever
+saves last wins.
+
+On a new device (or after clearing browser data), paste the same URL and
+tap **⬇ Load from cloud**.
 
 Note: the URL is unguessable but anyone who has it can read/write your data,
 so don't post it publicly.
+
+### Updating from the old sync format
+
+Older versions stored the app state as a JSON blob in a `Data` tab. To
+upgrade: open the sheet → Extensions → Apps Script, replace the code with
+the current [`apps-script.gs`](apps-script.gs), then **Deploy → Manage
+deployments → ✏️ Edit → Version: New version → Deploy** (the URL stays the
+same — no change needed in the app). Then tap **⬆ Save to cloud now** in
+the app once to populate the Exercises tab. You can delete the old `Data`
+tab afterwards.

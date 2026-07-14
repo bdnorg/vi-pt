@@ -329,8 +329,10 @@
       One-time setup: create a Google Sheet → Extensions → Apps Script → paste the
       script from <a href="https://github.com/bdnorg/vi-pt#cloud-sync-setup" target="_blank">the setup guide</a>
       → Deploy → New deployment → Web app, execute as <b>Me</b>, access
-      <b>Anyone</b> → copy the URL here. Your routines and full exercise history are
-      stored in your own spreadsheet.
+      <b>Anyone</b> → copy the URL here. Your exercises live in an editable
+      <b>Exercises</b> tab — add or change rows in the sheet, then
+      <b>⬇ Load from cloud</b> — and every finished session is appended
+      to a <b>History</b> tab.
     </div>
     <div class="modalbtns">
       <button class="cancel" id="sClose">Close</button>
@@ -359,6 +361,7 @@ function defaultState() {
     counts: {},          // exerciseId -> progress (see countsFor)
     history: [],         // [{date, routine, exercise, l, r, n, sets}]
     pendingHistory: [],  // history rows not yet pushed to the sheet
+    configDirty: false,  // exercise/routine setup changed since last push
     loop: false,
     ui: { mode: "normal", view: "video" },
     sync: { url: "", auto: true }
@@ -396,7 +399,13 @@ function load() {
 }
 function save() {
   localStorage.setItem(STORE_KEY, JSON.stringify(state));
-  scheduleAutoPush();
+  // Only setup changes and finished sessions belong in the sheet; rep taps
+  // and UI toggles stay local so auto-push can't clobber sheet edits.
+  if (state.configDirty || state.pendingHistory.length) scheduleAutoPush();
+}
+function saveConfig() {
+  state.configDirty = true;
+  save();
 }
 
 function activeRoutine() {
@@ -757,14 +766,14 @@ document.getElementById("setStartBtn").addEventListener("click", () => {
   if (!ex || !playerReady) return;
   ex.start = Math.floor(player.getCurrentTime() * 10) / 10;
   if (ex.end != null && ex.end <= ex.start) ex.end = null;
-  save(); renderControls(); renderExercises();
+  saveConfig(); renderControls(); renderExercises();
   toast("Start set to " + fmt(ex.start));
 });
 document.getElementById("setEndBtn").addEventListener("click", () => {
   const ex = activeExercise();
   if (!ex || !playerReady) return;
   ex.end = Math.floor(player.getCurrentTime() * 10) / 10;
-  save(); renderControls(); renderExercises();
+  saveConfig(); renderControls(); renderExercises();
   toast("End set to " + fmt(ex.end));
 });
 
@@ -772,7 +781,7 @@ function nudge(field, delta) {
   const ex = activeExercise();
   if (!ex || ex[field] == null) return;
   ex[field] = Math.max(0, ex[field] + delta);
-  save(); renderControls(); renderExercises();
+  saveConfig(); renderControls(); renderExercises();
 }
 document.getElementById("startMinus").addEventListener("click", () => nudge("start", -1));
 document.getElementById("startPlus").addEventListener("click", () => nudge("start", 1));
@@ -847,7 +856,7 @@ document.getElementById("addRoutineBtn").addEventListener("click", () => {
   state.routines.push(r);
   state.activeRoutineId = r.id;
   state.activeExerciseId = null;
-  save(); renderAll();
+  saveConfig(); renderAll();
 });
 document.getElementById("routineMenuBtn").addEventListener("click", () => {
   const r = activeRoutine();
@@ -863,7 +872,7 @@ document.getElementById("routineMenuBtn").addEventListener("click", () => {
   } else if (choice.trim() && choice.trim() !== r.name) {
     r.name = choice.trim();
   }
-  save(); renderAll();
+  saveConfig(); renderAll();
 });
 
 // ---------- Exercise modal ----------
@@ -944,7 +953,7 @@ document.getElementById("mSave").addEventListener("click", () => {
     state.activeExerciseId = ex.id;
     loadExerciseVideo(ex, false);
   }
-  save(); closeModal(); renderAll();
+  saveConfig(); closeModal(); renderAll();
 });
 
 document.getElementById("mDelete").addEventListener("click", () => {
@@ -958,11 +967,135 @@ document.getElementById("mDelete").addEventListener("click", () => {
     document.getElementById("controlsCard").style.display = "none";
     document.getElementById("playerPlaceholder").style.display = "flex";
   }
-  save(); closeModal(); renderAll();
+  saveConfig(); closeModal(); renderAll();
 });
 
 // ---------- Cloud sync ----------
+// The Google Sheet is the human-readable copy of the data: an "Exercises"
+// tab with one row per exercise (editable — add or change rows there and
+// "Load from cloud" picks them up) and an append-only "History" tab.
+// The Apps Script just moves rows; all row <-> state mapping happens here,
+// keyed by header names so reordered columns still work.
 let pushTimer = null, pushing = false;
+
+const EX_HEADER = ["Routine", "Exercise", "Video", "Type", "Reps", "Seconds",
+                   "Sets", "Per side", "Start", "End", "Aspect", "ID"];
+const COL_ALIAS = { routine: "routine", exercise: "name", name: "name",
+  video: "video", url: "video", type: "mode", mode: "mode", reps: "reps",
+  seconds: "seconds", secs: "seconds", sets: "sets", perside: "perSide",
+  side: "perSide", start: "start", end: "end", aspect: "aspect",
+  shape: "aspect", id: "id" };
+
+function headerMap(headerRow, alias) {
+  return (headerRow || []).map(h =>
+    alias[String(h).toLowerCase().replace(/[^a-z]/g, "")] || null);
+}
+
+function exportExerciseRows() {
+  const rows = [EX_HEADER];
+  for (const r of state.routines) {
+    for (const ex of r.exercises) {
+      rows.push([
+        r.name, ex.name, "https://youtu.be/" + ex.videoId,
+        ex.mode === "time" ? "hold" : "reps",
+        ex.mode === "time" ? "" : ex.reps,
+        ex.mode === "time" ? ex.seconds : "",
+        ex.sets, !!ex.perSide,
+        ex.start || 0, ex.end == null ? "" : ex.end,
+        (ex.aspect || "16/9").replace("/", ":"), ex.id
+      ]);
+    }
+  }
+  return rows;
+}
+
+function parseSheetTime(v) {   // accepts 75, "75", "1:15", "1:15.5", blank
+  if (v === "" || v == null) return null;
+  if (typeof v === "number") return v;
+  const m = String(v).trim().match(/^(\d+):(\d{1,2}(?:\.\d+)?)$/);
+  if (m) return parseInt(m[1], 10) * 60 + parseFloat(m[2]);
+  const n = parseFloat(v);
+  return isNaN(n) ? null : n;
+}
+function sheetTruthy(v) {
+  return v === true || /^(true|yes|y|x|1)$/i.test(String(v).trim());
+}
+
+function importExerciseRows(rows) {
+  const header = headerMap(rows[0], COL_ALIAS);
+  const routines = [], byName = {};
+  let skipped = 0, generated = 0;
+  for (const raw of rows.slice(1)) {
+    const f = {};
+    header.forEach((k, i) => { if (k) f[k] = raw[i]; });
+    const name = String(f.name == null ? "" : f.name).trim();
+    const vid = parseVideoId(String(f.video == null ? "" : f.video));
+    if (!name && !vid) continue;          // blank row
+    if (!vid) { skipped++; continue; }    // row without a usable video link
+    const rname = String(f.routine == null ? "" : f.routine).trim() || "My Routine";
+    let r = byName[rname.toLowerCase()];
+    if (!r) {
+      const old = state.routines.find(x => x.name === rname);
+      r = { id: old ? old.id : uid(), name: rname, exercises: [] };
+      byName[rname.toLowerCase()] = r;
+      routines.push(r);
+    }
+    const mode = /^[ht]/i.test(String(f.mode == null ? "" : f.mode).trim()) ? "time" : "reps";
+    let aspect = String(f.aspect == null ? "" : f.aspect).trim().replace(":", "/");
+    if (!["16/9", "4/3", "1/1", "9/16"].includes(aspect)) aspect = "16/9";
+    let id = String(f.id == null ? "" : f.id).trim();
+    if (!id) { id = uid(); generated++; }
+    const repsBlank = f.reps === "" || f.reps == null;
+    r.exercises.push({
+      id, name: name || "Exercise", videoId: vid,
+      start: parseSheetTime(f.start) || 0,
+      end: parseSheetTime(f.end),
+      mode,
+      reps: repsBlank ? (mode === "reps" ? 10 : 0) : Math.max(0, parseInt(f.reps, 10) || 0),
+      seconds: Math.max(1, parseInt(f.seconds, 10) || 30),
+      sets: Math.max(1, parseInt(f.sets, 10) || 1),
+      perSide: sheetTruthy(f.perSide),
+      aspect
+    });
+  }
+  return { routines, skipped, generated };
+}
+
+function toHistoryRow(h) {
+  return [h.date, h.routine, h.exercise, h.timed ? "hold" : "reps",
+          h.l != null ? h.l : "", h.r != null ? h.r : "",
+          h.n != null ? h.n : "", h.sets != null ? h.sets : 0];
+}
+
+function normalizeSheetDate(v) {
+  const d = new Date(v);   // sheet cells come back as ISO strings
+  if (isNaN(d)) return String(v);
+  const p = n => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) +
+         " " + p(d.getHours()) + ":" + p(d.getMinutes());
+}
+
+function importHistoryRows(headerRow, rows) {
+  const alias = { date: "date", routine: "routine", exercise: "exercise",
+                  type: "type", left: "l", right: "r", reps: "n", sets: "sets" };
+  const header = headerMap(headerRow, alias);
+  const out = [];
+  for (const raw of rows) {
+    const f = {};
+    header.forEach((k, i) => { if (k) f[k] = raw[i]; });
+    if (f.date == null || f.date === "") continue;
+    const h = { date: normalizeSheetDate(f.date),
+                routine: String(f.routine == null ? "" : f.routine),
+                exercise: String(f.exercise == null ? "" : f.exercise),
+                sets: parseInt(f.sets, 10) || 0 };
+    if (/^[ht]/i.test(String(f.type == null ? "" : f.type))) h.timed = true;
+    if (f.l !== "" && f.l != null) h.l = parseInt(f.l, 10) || 0;
+    if (f.r !== "" && f.r != null) h.r = parseInt(f.r, 10) || 0;
+    if (f.n !== "" && f.n != null) h.n = parseInt(f.n, 10) || 0;
+    out.push(h);
+  }
+  return out;
+}
 
 function syncStatus(msg, cls) {
   const el = document.getElementById("sStatus");
@@ -970,27 +1103,28 @@ function syncStatus(msg, cls) {
   el.className = "syncstatus " + (cls || "");
 }
 
-function cloudPayload() {
-  const { sync, ...data } = state;   // don't store the endpoint URL in the sheet
-  return data;
-}
-
 async function pushCloud(manual) {
   if (!state.sync.url || pushing) return;
+  const sendConfig = manual || state.configDirty;
+  const newHistory = state.pendingHistory.map(toHistoryRow);
+  if (!sendConfig && newHistory.length === 0) return;
   pushing = true;
   if (manual) syncStatus("Saving…");
   try {
+    const body = { newHistory };
+    if (sendConfig) body.exercises = exportExerciseRows();
     const res = await fetch(state.sync.url, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" }, // simple request: no CORS preflight
-      body: JSON.stringify({ data: cloudPayload(), newHistory: state.pendingHistory })
+      body: JSON.stringify(body)
     });
     if (!res.ok) throw new Error("HTTP " + res.status);
     state.pendingHistory = [];
+    state.configDirty = false;
     localStorage.setItem(STORE_KEY, JSON.stringify(state)); // save without re-triggering push
     const t = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    syncStatus("Saved to cloud at " + t, "ok");
-    if (manual) toast("Saved to cloud ✓");
+    syncStatus("Saved to sheet at " + t, "ok");
+    if (manual) toast("Saved to sheet ✓");
   } catch (e) {
     syncStatus("Cloud save failed: " + e.message, "err");
     if (manual) toast("Cloud save failed");
@@ -1005,20 +1139,37 @@ async function pullCloud() {
     const res = await fetch(state.sync.url);
     if (!res.ok) throw new Error("HTTP " + res.status);
     const remote = await res.json();
-    if (!remote || !remote.routines) { syncStatus("No data in the cloud yet — save first.", "err"); return; }
-    if (!confirm("Replace the routines and history on this device with the cloud copy?")) { syncStatus(""); return; }
-    const sync = state.sync;
-    state = migrate(remote);
-    state.sync = sync;
-    state.pendingHistory = state.pendingHistory || [];
+    if (remote && remote.routines) {
+      syncStatus("Your sheet still uses the old sync script — update it from the setup guide (the URL stays the same), then Save to cloud once.", "err");
+      return;
+    }
+    if (!remote || !remote.exercises || remote.exercises.length < 2) {
+      syncStatus("No exercises in the sheet yet — Save to cloud first, or add rows to the Exercises tab.", "err");
+      return;
+    }
+    if (!confirm("Replace this device's routines with the sheet's Exercises tab?")) { syncStatus(""); return; }
+    const { routines, skipped, generated } = importExerciseRows(remote.exercises);
+    if (routines.length === 0) {
+      syncStatus("No usable rows found — each exercise needs a YouTube link in the Video column.", "err");
+      return;
+    }
     stopTimer();
-    localStorage.setItem(STORE_KEY, JSON.stringify(state));
+    state.routines = routines;
+    const allIds = new Set();
+    for (const r of routines) for (const ex of r.exercises) allIds.add(ex.id);
+    for (const id of Object.keys(state.counts)) if (!allIds.has(id)) delete state.counts[id];
+    if (!routines.some(r => r.id === state.activeRoutineId)) state.activeRoutineId = routines[0].id;
+    if (!allIds.has(state.activeExerciseId)) state.activeExerciseId = null;
+    if (remote.history && remote.history.length)
+      state.history = importHistoryRows(remote.historyHeader, remote.history);
+    if (generated) state.configDirty = true;  // write assigned IDs back to the sheet
+    save();
     const ex = activeExercise();
     if (ex) loadExerciseVideo(ex, false);
     else document.getElementById("playerPlaceholder").style.display = "flex";
     renderAll();
-    syncStatus("Loaded from cloud ✓", "ok");
-    toast("Loaded from cloud ✓");
+    syncStatus("Loaded from sheet ✓" + (skipped ? " (" + skipped + " row(s) skipped — no valid video link)" : ""), skipped ? "err" : "ok");
+    toast("Loaded from sheet ✓");
   } catch (e) {
     syncStatus("Load failed: " + e.message, "err");
   }
