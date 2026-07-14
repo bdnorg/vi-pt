@@ -24,7 +24,15 @@ Works best in Chrome on Android signed into a YouTube Premium account
   wider than the screen. Double-tap the bar to go back to automatic
   sizing.
 - **Normal mode** — just work out. The 🎬/🔢 button switches between a
-  big-video view and a big-buttons view.
+  big-video view and a big-buttons view. Timed holds start with a 3-second
+  get-ready countdown; sound cues (toggle with 🔊) beep the 3-2-1, the
+  start, and the finish of every hold and rest. If an exercise has a rest
+  time set, a rest countdown starts automatically after each set (tap it
+  to skip). When an exercise hits all its sets, the app moves on to the
+  next unfinished one. Each exercise shows what you did **last time**,
+  and a per-exercise instruction line (set in edit mode) stays on screen
+  while you work. The 1×/0.75×/0.5× button slows the video down.
+- **Reorder** — in edit mode, ▲▼ on each exercise moves it in the list.
 - **✓ Finish & log session** — records what you did to history and resets
   the counters for next time.
 - **☁ Cloud sync** — backs everything up to a Google Sheet you own
@@ -60,9 +68,11 @@ One-time, about two minutes:
 ## How the spreadsheet is laid out
 
 - **Exercises** tab — one row per exercise, one column per setting:
-  `Routine, Exercise, Video, Type, Reps, Seconds, Sets, Per side, Start,
-  End, Aspect, ID`. `Type` is `reps` or `hold`; `Start`/`End` are seconds
-  (or `m:ss`); `Aspect` is `16:9`, `4:3`, `1:1`, or `9:16`.
+  `Routine, Exercise, Video, Type, Reps, Seconds, Sets, Per side, Rest,
+  Start, End, Aspect, Speed, Instructions, ID`. `Type` is `reps` or
+  `hold`; `Rest` is seconds between sets (0 = none); `Start`/`End` are
+  seconds (or `m:ss`); `Aspect` is `16:9`, `4:3`, `1:1`, or `9:16`;
+  `Speed` is the playback rate (1, 0.75, 0.5).
 - **History** tab — one row per exercise per finished session:
   `Date, Routine, Exercise, Type, Left, Right, Reps, Sets, Notes`.
   Append-only; this is the full log (the app only shows the recent tail).
@@ -79,9 +89,10 @@ Columns are matched by header name, so reordering columns is fine too.
 The app writes the Exercises tab when you change setup in the app (edit
 mode, marks) and appends to History when you finish a session. Rep counts
 during a workout stay on the device, so working out never overwrites
-sheet edits. Sync is still last-write-wins for the Exercises tab: if you
-edit the sheet *and* the app's edit mode at the same time, whichever
-saves last wins.
+sheet edits. If the Exercises tab changed since this device last synced,
+an auto-save refuses to overwrite it and tells you to **⬇ Load from
+cloud** first (a manual **⬆ Save to cloud now** offers to overwrite);
+history rows are append-only and always go through.
 
 On a new device (or after clearing browser data), paste the same URL and
 tap **⬇ Load from cloud**.

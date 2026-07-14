@@ -103,6 +103,15 @@
   .counter .tapbtn.done .num { color: var(--green); }
   .counter .tapbtn.timing { background: #1d3450; }
   .counter .tapbtn.timing .num { color: var(--accent); }
+  .counter .tapbtn.lead { background: #3d2f14; }
+  .counter .tapbtn.lead .num { color: var(--amber); }
+  #speedBtn { flex: 0 0 74px; }
+  .instr { color: var(--amber); font-size: 14px; text-align: center;
+           margin-top: 10px; line-height: 1.4; }
+  .restline { cursor: pointer; }
+  .weekline { color: var(--green); font-size: 13px; margin: -6px 0 8px; }
+  .exitem .mv { font-size: 14px; padding: 8px 6px; background: transparent;
+                border: none; color: var(--muted); }
   .counter .minus {
     margin-top: 6px; width: 100%; padding: 7px; font-size: 16px;
     background: transparent; color: var(--muted);
@@ -225,6 +234,7 @@
   <button class="iconbtn editonly" id="addRoutineBtn" title="New routine">＋</button>
   <button class="iconbtn editonly" id="routineMenuBtn" title="Routine options">⋯</button>
   <button class="iconbtn normalonly" id="viewBtn" title="Toggle view">🎬</button>
+  <button class="iconbtn normalonly" id="soundBtn" title="Sound cues">🔊</button>
   <button class="iconbtn" id="editBtn" title="Edit mode">✏️</button>
   <button class="iconbtn" id="syncBtn" title="Cloud sync">☁</button>
 </header>
@@ -250,8 +260,10 @@
     <div class="markrow">
       <button class="bigbtn" id="restartBtn">⟲ Restart</button>
       <button class="toggle" id="loopBtn">Loop</button>
+      <button class="toggle" id="speedBtn" title="Playback speed">1×</button>
     </div>
 
+    <div class="instr" id="instrLine" style="display:none"></div>
     <div class="counters" id="countersWrap"></div>
     <div id="setArea"></div>
 
@@ -275,6 +287,7 @@
   </div>
 
   <h2>Recent history</h2>
+  <div class="weekline" id="weekLine" style="display:none"></div>
   <div id="historyList"></div>
 </div>
 
@@ -312,6 +325,13 @@
       <input type="checkbox" id="mPerSide">
       <label for="mPerSide" style="margin:0;color:var(--text)">Per side (left / right)</label>
     </div>
+
+    <label>Rest between sets (seconds, 0 = none)</label>
+    <input type="number" id="mRest" min="0" inputmode="numeric" value="0">
+
+    <label>Instructions (shown during the workout)</label>
+    <input type="text" id="mInstr" placeholder="e.g. Pause 2s at the top, elbow tucked">
+
 
     <label>Video shape (aspect ratio)</label>
     <div class="segrow" id="mAspect">
@@ -383,7 +403,7 @@ function defaultState() {
     configDirty: false,  // exercise/routine setup changed since last push
     sessionNote: "",     // draft note, attached to the session on finish
     loop: false,
-    ui: { mode: "normal", view: "video", videoH: null },  // videoH: dragged video height in px, null = auto
+    ui: { mode: "normal", view: "video", videoH: null, sound: true },  // videoH: dragged px, null = auto
     sync: { url: "", auto: true }
   };
 }
@@ -456,10 +476,18 @@ window.onYouTubeIframeAPIReady = function () {
       onReady: () => {
         playerReady = true;
         if (pendingLoad) { doLoad(pendingLoad); pendingLoad = null; }
-      }
+      },
+      // rate has to be (re)applied per video, so sync whenever playback starts
+      onStateChange: (e) => { if (e.data === YT.PlayerState.PLAYING) syncPlaybackRate(); }
     }
   });
 };
+
+function syncPlaybackRate() {
+  const ex = activeExercise();
+  if (!playerReady || !ex) return;
+  try { player.setPlaybackRate(ex.speed || 1); } catch (e) {}
+}
 
 function loadExerciseVideo(ex, autoplay) {
   const req = { videoId: ex.videoId, start: ex.start || 0, autoplay };
@@ -570,43 +598,113 @@ function escapeHtml(s) {
   })[ch]);
 }
 
-// ---------- Timer (timed holds) ----------
-// Wall-clock based: remaining time comes from an end timestamp, not tick
-// counting, so a locked screen or throttled tab can't stretch the hold.
-let timer = null; // {exId, side, endsAt, shown, tick, iv}
-
-function stopTimer() {
-  if (timer) { clearInterval(timer.iv); timer = null; }
+// ---------- Audio + haptic cues ----------
+// One cue() call covers both channels. The AudioContext is created inside
+// the tap that starts a countdown, which satisfies autoplay policies; every
+// later beep in that flow reuses the unlocked context.
+let audioCtx = null;
+function beep(freq, ms, delay) {
+  if (state.ui.sound === false) return;
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    const t = audioCtx.currentTime + (delay || 0);
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = "sine"; o.frequency.value = freq;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.2, t + 0.01);
+    g.gain.setValueAtTime(0.2, t + ms / 1000 - 0.02);
+    g.gain.linearRampToValueAtTime(0, t + ms / 1000);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(t); o.stop(t + ms / 1000 + 0.05);
+  } catch (e) {}
 }
-function startTimer(ex, side) {
-  if (timer && timer.exId === ex.id && timer.side === side) { stopTimer(); renderControls(); return; }
-  stopTimer();
-  timer = { exId: ex.id, side, endsAt: Date.now() + ex.seconds * 1000, shown: ex.seconds, tick: null, iv: null };
-  timer.tick = () => {
-    if (!timer) return;
-    const remaining = Math.ceil((timer.endsAt - Date.now()) / 1000);
+function cue(kind) {   // 'tick' = 3-2-1 · 'go' = start / rest over · 'done' = set finished
+  if (kind === "tick") { vib(40); beep(880, 90); }
+  else if (kind === "go") { vib(80); beep(1320, 160); }
+  else { vib([200, 100, 200]); beep(660, 120); beep(880, 120, 0.14); beep(1100, 220, 0.28); }
+}
+
+// ---------- Countdown engine (hold lead-in, holds, rest breaks) ----------
+// One countdown runs at a time; phases chain (lead-in → hold). Wall-clock
+// based: remaining time comes from an end timestamp, so a locked screen or
+// throttled tab can't stretch it, and a countdown that elapsed while the
+// app was hidden completes on return.
+const LEAD_SECS = 3;
+let countdown = null; // {kind: 'lead'|'hold'|'rest', exId, side, endsAt, shown, iv, tick, onDone}
+
+function stopCountdown() {
+  if (countdown) { clearInterval(countdown.iv); countdown = null; }
+}
+function startCountdown(kind, ex, side, secs, onDone) {
+  stopCountdown();
+  countdown = { kind, exId: ex.id, side, endsAt: Date.now() + secs * 1000,
+                shown: secs, iv: null, tick: null, onDone };
+  countdown.tick = () => {
+    if (!countdown) return;
+    const remaining = Math.ceil((countdown.endsAt - Date.now()) / 1000);
     if (remaining <= 0) {
-      const c = countsFor(ex);
-      if (side === "l") c.setsL++; else if (side === "r") c.setsR++; else c.setsN++;
-      stopTimer();
-      vib([200, 100, 200]);
-      save(); renderControls(); renderExercises();
-      toast("Set done!");
+      const done = countdown.onDone;
+      stopCountdown();
+      done();
       return;
     }
-    if (remaining !== timer.shown) {
-      timer.shown = remaining;
-      if (remaining <= 3) vib(40);
+    if (remaining !== countdown.shown) {
+      countdown.shown = remaining;
+      if (remaining <= 3) cue("tick");
       renderControls();
     }
   };
-  timer.iv = setInterval(timer.tick, 250);
+  countdown.iv = setInterval(countdown.tick, 250);
   renderControls();
 }
-// Catch up immediately when the app comes back to the foreground.
 document.addEventListener("visibilitychange", () => {
-  if (timer && document.visibilityState === "visible") timer.tick();
+  if (countdown && document.visibilityState === "visible") countdown.tick();
 });
+
+function startHold(ex, side) {
+  // tapping the running counter cancels it
+  if (countdown && countdown.exId === ex.id && countdown.side === side &&
+      (countdown.kind === "lead" || countdown.kind === "hold")) {
+    stopCountdown(); renderControls(); return;
+  }
+  cue("tick");   // the "3" of 3-2-1; also unlocks audio inside the tap gesture
+  startCountdown("lead", ex, side, LEAD_SECS, () => {
+    cue("go");
+    startCountdown("hold", ex, side, ex.seconds, () => holdDone(ex, side));
+  });
+}
+function holdDone(ex, side) {
+  const c = countsFor(ex);
+  if (side === "l") c.setsL++; else if (side === "r") c.setsR++; else c.setsN++;
+  cue("done");
+  save(); renderExercises();
+  if (exDone(ex)) { toast("Exercise done ✓"); maybeAutoAdvance(ex); }
+  else if (ex.rest > 0) startRest(ex);
+  else toast("Set done!");
+  renderControls();
+}
+function startRest(ex) {
+  startCountdown("rest", ex, null, ex.rest, () => {
+    cue("go"); toast("Rest over — go!"); renderControls();
+  });
+}
+
+// After the last set of an exercise, move on to the next unfinished one.
+function maybeAutoAdvance(ex) {
+  if (state.ui.mode !== "normal") return;
+  const r = activeRoutine();
+  const list = r.exercises;
+  const i = list.findIndex(e => e.id === ex.id);
+  const next = list.slice(i + 1).concat(list.slice(0, i)).find(e => !exDone(e));
+  if (!next) { toast("Routine complete — finish & log 🎉"); return; }
+  setTimeout(() => {
+    if (state.activeExerciseId !== ex.id || !exDone(ex) || countdown) return;
+    if (activeRoutine().id !== r.id) return;
+    selectExercise(next.id, false);
+    toast("Next: " + next.name);
+  }, 1500);
+}
 
 // ---------- Progress / doneness ----------
 function exDone(ex) {
@@ -635,6 +733,7 @@ function renderModeUI() {
   document.body.classList.toggle("view-buttons", state.ui.view === "buttons");
   document.getElementById("editBtn").classList.toggle("editon", state.ui.mode === "edit");
   document.getElementById("viewBtn").textContent = state.ui.view === "video" ? "🎬" : "🔢";
+  document.getElementById("soundBtn").textContent = state.ui.sound === false ? "🔇" : "🔊";
   applyVideoShape(activeExercise());
 }
 
@@ -663,25 +762,44 @@ function renderControls() {
   loopBtn.classList.toggle("on", state.loop);
   loopBtn.textContent = state.loop ? "Loop ✓" : "Loop";
 
+  const speedBtn = document.getElementById("speedBtn");
+  speedBtn.textContent = (ex.speed || 1) + "×";
+  speedBtn.classList.toggle("on", (ex.speed || 1) !== 1);
+
+  const il = document.getElementById("instrLine");
+  if (ex.instr) { il.textContent = "📋 " + ex.instr; il.style.display = "block"; }
+  else il.style.display = "none";
+
   const wrap = document.getElementById("countersWrap");
   const setArea = document.getElementById("setArea");
   wrap.innerHTML = ""; setArea.innerHTML = "";
   const c = countsFor(ex);
 
+  const restRunning = countdown && countdown.kind === "rest" && countdown.exId === ex.id;
+  const addRestLine = () => {
+    const d = document.createElement("div");
+    d.className = "setinfo restline";
+    d.innerHTML = 'Rest — <b>' + countdown.shown + 's</b> · tap to skip';
+    d.addEventListener("click", () => { stopCountdown(); renderControls(); });
+    setArea.appendChild(d);
+  };
+
   if (ex.mode === "time") {
     const mkTimer = (label, side, setsKey) => {
       const div = document.createElement("div");
       div.className = "counter";
-      const running = timer && timer.exId === ex.id && timer.side === side;
+      const mine = countdown && countdown.exId === ex.id && countdown.side === side;
+      const leading = mine && countdown.kind === "lead";
+      const holding = mine && countdown.kind === "hold";
       const hit = c[setsKey] >= ex.sets;
       div.innerHTML =
-        '<button class="tapbtn' + (running ? " timing" : hit ? " done" : "") + '">' +
-          '<span class="lbl">' + label + '</span>' +
-          '<span class="num">' + (running ? timer.shown : ex.seconds + "s") + '</span>' +
+        '<button class="tapbtn' + (leading ? " lead" : holding ? " timing" : hit ? " done" : "") + '">' +
+          '<span class="lbl">' + (leading ? "Get ready…" : label) + '</span>' +
+          '<span class="num">' + (leading || holding ? countdown.shown : ex.seconds + "s") + '</span>' +
           '<span class="tgt">' + c[setsKey] + " of " + ex.sets + " sets</span>" +
         '</button>' +
         '<button class="minus">− set</button>';
-      div.querySelector(".tapbtn").addEventListener("click", () => startTimer(ex, side));
+      div.querySelector(".tapbtn").addEventListener("click", () => startHold(ex, side));
       div.querySelector(".minus").addEventListener("click", () => {
         c[setsKey] = Math.max(0, c[setsKey] - 1);
         save(); renderControls(); renderExercises();
@@ -690,7 +808,8 @@ function renderControls() {
     };
     if (ex.perSide) { mkTimer("Left · hold", "l", "setsL"); mkTimer("Right · hold", "r", "setsR"); }
     else mkTimer("Hold", "n", "setsN");
-    setArea.innerHTML = '<div class="setinfo">Tap to start a <b>' + ex.seconds + 's</b> hold — a finished timer counts one set.</div>';
+    if (restRunning) addRestLine();
+    else setArea.innerHTML = '<div class="setinfo">Tap to start: <b>' + LEAD_SECS + 's</b> get-ready, then a <b>' + ex.seconds + 's</b> hold. A finished hold counts one set.</div>';
     return;
   }
 
@@ -729,10 +848,14 @@ function renderControls() {
     if (ex.perSide) { c.tl += c.l; c.tr += c.r; c.l = 0; c.r = 0; }
     else { c.tn += c.n; c.n = 0; }
     c.sets++;
-    vib([100, 60, 100]);
-    save(); renderControls(); renderExercises();
+    cue("done");
+    save();
+    if (exDone(ex)) { toast("Exercise done ✓"); maybeAutoAdvance(ex); }
+    else if (ex.rest > 0) startRest(ex);
+    renderControls(); renderExercises();
   });
   setArea.appendChild(btn);
+  if (restRunning) addRestLine();
 }
 
 function renderExercises() {
@@ -746,30 +869,78 @@ function renderExercises() {
     p.textContent = "No exercises yet. Turn on ✏️ edit mode and tap “Add exercise”.";
     list.appendChild(p);
   }
-  for (const ex of r.exercises) {
+  r.exercises.forEach((ex, idx) => {
     const item = document.createElement("div");
     item.className = "exitem" + (ex.id === state.activeExerciseId ? " active" : "");
     const done = exDone(ex);
     const kind = ex.mode === "time" ? ex.seconds + "s hold" : ex.reps + " reps";
+    const last = lastTimeFor(ex, r.name);
     item.innerHTML =
       '<div class="info">' +
         '<div class="name">' + escapeHtml(ex.name) + '</div>' +
         '<div class="meta">' + kind + " × " + ex.sets +
           (ex.perSide ? " · per side" : "") + " · " + fmt(ex.start) + "→" + fmt(ex.end) + '</div>' +
+        (last ? '<div class="meta">Last: ' + escapeHtml(last.date.slice(5, 10)) + ' · ' +
+                histWhat(last) + (last.note ? ' · 📝 ' + escapeHtml(last.note) : '') + '</div>' : '') +
       '</div>' +
       '<div class="progress' + (done ? " done" : "") + '">' +
         (done ? "✓ " : "") + exProgress(ex) + '</div>' +
+      '<button class="mv editonly" data-mv="-1">▲</button>' +
+      '<button class="mv editonly" data-mv="1">▼</button>' +
       '<button class="edit editonly">✎</button>';
     item.querySelector(".info").addEventListener("click", () => selectExercise(ex.id));
     item.querySelector(".progress").addEventListener("click", () => selectExercise(ex.id));
     item.querySelector(".edit").addEventListener("click", (e) => {
       e.stopPropagation(); openModal(ex);
     });
+    for (const b of item.querySelectorAll(".mv")) {
+      b.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const j = idx + parseInt(b.dataset.mv, 10);
+        if (j < 0 || j >= r.exercises.length) return;
+        r.exercises.splice(idx, 1);
+        r.exercises.splice(j, 0, ex);
+        saveConfig(); renderExercises();
+      });
+    }
     list.appendChild(item);
+  });
+}
+
+function lastTimeFor(ex, routineName) {
+  for (let i = state.history.length - 1; i >= 0; i--) {
+    const h = state.history[i];
+    if (h.exercise === ex.name && h.routine === routineName) return h;
   }
+  return null;
+}
+
+function histWhat(h) {
+  if (h.timed) {
+    return (h.l != null || h.r != null)
+      ? (h.l || 0) + "L / " + (h.r || 0) + "R holds"
+      : h.sets + " holds";
+  }
+  if (h.l != null || h.r != null) return (h.l || 0) + "L / " + (h.r || 0) + "R reps · " + h.sets + " sets";
+  if (h.n != null) return h.n + " reps · " + h.sets + " sets";
+  return h.sets + " sets";
 }
 
 function renderHistory() {
+  const week = document.getElementById("weekLine");
+  const cutoff = Date.now() - 7 * 86400e3;
+  const recent7 = state.history.filter(h => {
+    const d = new Date(h.date);
+    return !isNaN(d) && d.getTime() >= cutoff;
+  });
+  if (recent7.length) {
+    const sessions = new Set(recent7.map(h => h.date)).size;  // rows of one finish share a timestamp
+    const sets = recent7.reduce((a, h) => a + (h.sets || 0), 0);
+    week.textContent = "Last 7 days: " + sessions + " session" + (sessions === 1 ? "" : "s") +
+                       " · " + sets + " sets";
+    week.style.display = "block";
+  } else week.style.display = "none";
+
   const list = document.getElementById("historyList");
   list.innerHTML = "";
   const recent = state.history.slice(-12).reverse();
@@ -780,17 +951,8 @@ function renderHistory() {
   for (const h of recent) {
     const div = document.createElement("div");
     div.className = "histitem";
-    let what;
-    if (h.timed) {
-      what = (h.l != null || h.r != null)
-        ? (h.l || 0) + "L / " + (h.r || 0) + "R holds"
-        : h.sets + " holds";
-    }
-    else if (h.l != null || h.r != null) what = (h.l || 0) + "L / " + (h.r || 0) + "R reps · " + h.sets + " sets";
-    else if (h.n != null) what = h.n + " reps · " + h.sets + " sets";
-    else what = h.sets + " sets";
     div.innerHTML = '<span class="d">' + escapeHtml(h.date.slice(5, 10)) + '</span>' +
-      '<span class="w">' + escapeHtml(h.exercise) + '</span><span>' + what + '</span>' +
+      '<span class="w">' + escapeHtml(h.exercise) + '</span><span>' + histWhat(h) + '</span>' +
       (h.note ? '<span class="nte">📝 ' + escapeHtml(h.note) + '</span>' : '');
     list.appendChild(div);
   }
@@ -799,15 +961,17 @@ function renderHistory() {
 function renderAll() { renderModeUI(); renderRoutines(); renderControls(); renderExercises(); renderHistory(); }
 
 // ---------- Actions ----------
-function selectExercise(id) {
+function selectExercise(id, autoplay) {
   const r = activeRoutine();
   const ex = r.exercises.find(e => e.id === id);
   if (!ex) return;
-  stopTimer();
+  stopCountdown();
   state.activeExerciseId = id;
   save();
-  loadExerciseVideo(ex, true);
+  loadExerciseVideo(ex, autoplay !== false);
   renderControls(); renderExercises();
+  const item = document.querySelector(".exitem.active");
+  if (item) item.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
 
 document.getElementById("editBtn").addEventListener("click", () => {
@@ -817,6 +981,19 @@ document.getElementById("editBtn").addEventListener("click", () => {
 document.getElementById("viewBtn").addEventListener("click", () => {
   state.ui.view = state.ui.view === "video" ? "buttons" : "video";
   save(); renderModeUI(); renderControls();
+});
+document.getElementById("soundBtn").addEventListener("click", () => {
+  state.ui.sound = state.ui.sound === false;   // false → true, anything else → false
+  save(); renderModeUI();
+  if (state.ui.sound) cue("go");   // audible confirmation; also unlocks audio
+  toast(state.ui.sound ? "Sound cues on" : "Sound cues off");
+});
+document.getElementById("speedBtn").addEventListener("click", () => {
+  const ex = activeExercise();
+  if (!ex) return;
+  const order = [1, 0.75, 0.5];
+  ex.speed = order[(order.indexOf(ex.speed || 1) + 1) % order.length];
+  saveConfig(); syncPlaybackRate(); renderControls();
 });
 
 document.getElementById("setStartBtn").addEventListener("click", () => {
@@ -907,7 +1084,7 @@ document.getElementById("finishBtn").addEventListener("click", () => {
 document.getElementById("routineSelect").addEventListener("change", (e) => {
   state.activeRoutineId = e.target.value;
   state.activeExerciseId = null;
-  stopTimer();
+  stopCountdown();
   save(); renderAll();
   document.getElementById("controlsCard").style.display = "none";
 });
@@ -996,6 +1173,8 @@ function openModal(ex) {
   document.getElementById("mReps").value = ex ? (ex.reps || 10) : 10;
   document.getElementById("mSecs").value = ex ? (ex.seconds || 30) : 30;
   document.getElementById("mSets").value = ex ? (ex.sets || 1) : 3;
+  document.getElementById("mRest").value = ex ? (ex.rest || 0) : 0;
+  document.getElementById("mInstr").value = ex ? (ex.instr || "") : "";
   document.getElementById("mPerSide").checked = ex ? !!ex.perSide : false;
   mModeVal = ex ? (ex.mode || "reps") : "reps";
   mAspectVal = ex ? (ex.aspect || "16/9") : "16/9";
@@ -1019,6 +1198,8 @@ document.getElementById("mSave").addEventListener("click", () => {
   const reps = parseInt(document.getElementById("mReps").value, 10) || 0;
   const seconds = Math.max(1, parseInt(document.getElementById("mSecs").value, 10) || 30);
   const sets = Math.max(1, parseInt(document.getElementById("mSets").value, 10) || 1);
+  const rest = Math.max(0, parseInt(document.getElementById("mRest").value, 10) || 0);
+  const instr = document.getElementById("mInstr").value.trim();
   const perSide = document.getElementById("mPerSide").checked;
   if (!vid) { alert("That doesn't look like a valid YouTube link or video ID."); return; }
   // Belt for save-before-blur: a /shorts/ link is portrait even if the
@@ -1031,7 +1212,7 @@ document.getElementById("mSave").addEventListener("click", () => {
       const videoChanged = ex.videoId !== vid;
       const structureChanged = ex.perSide !== perSide || ex.mode !== mModeVal;
       Object.assign(ex, { name: name || ex.name, videoId: vid, reps, seconds, sets,
-                          perSide, mode: mModeVal, aspect: mAspectVal });
+                          rest, instr, perSide, mode: mModeVal, aspect: mAspectVal });
       if (structureChanged) delete state.counts[ex.id];
       if (videoChanged) { ex.start = 0; ex.end = null; }
       if (state.activeExerciseId === ex.id) {
@@ -1041,7 +1222,7 @@ document.getElementById("mSave").addEventListener("click", () => {
     }
   } else {
     const ex = { id: uid(), name: name || "Exercise", videoId: vid, start: 0, end: null,
-                 reps, seconds, sets, perSide, mode: mModeVal, aspect: mAspectVal };
+                 reps, seconds, sets, rest, instr, perSide, mode: mModeVal, aspect: mAspectVal };
     r.exercises.push(ex);
     state.activeExerciseId = ex.id;
     loadExerciseVideo(ex, false);
@@ -1072,12 +1253,14 @@ document.getElementById("mDelete").addEventListener("click", () => {
 let pushTimer = null, pushing = false;
 
 const EX_HEADER = ["Routine", "Exercise", "Video", "Type", "Reps", "Seconds",
-                   "Sets", "Per side", "Start", "End", "Aspect", "ID"];
+                   "Sets", "Per side", "Rest", "Start", "End", "Aspect",
+                   "Speed", "Instructions", "ID"];
 const COL_ALIAS = { routine: "routine", exercise: "name", name: "name",
   video: "video", url: "video", type: "mode", mode: "mode", reps: "reps",
   seconds: "seconds", secs: "seconds", sets: "sets", perside: "perSide",
-  side: "perSide", start: "start", end: "end", aspect: "aspect",
-  shape: "aspect", id: "id" };
+  side: "perSide", rest: "rest", start: "start", end: "end", aspect: "aspect",
+  shape: "aspect", speed: "speed", instructions: "instr", instr: "instr",
+  id: "id" };
 
 function headerMap(headerRow, alias) {
   return (headerRow || []).map(h =>
@@ -1093,9 +1276,10 @@ function exportExerciseRows() {
         ex.mode === "time" ? "hold" : "reps",
         ex.mode === "time" ? "" : ex.reps,
         ex.mode === "time" ? ex.seconds : "",
-        ex.sets, !!ex.perSide,
+        ex.sets, !!ex.perSide, ex.rest || 0,
         ex.start || 0, ex.end == null ? "" : ex.end,
-        (ex.aspect || "16/9").replace("/", ":"), ex.id
+        (ex.aspect || "16/9").replace("/", ":"),
+        ex.speed || 1, ex.instr || "", ex.id
       ]);
     }
   }
@@ -1139,6 +1323,9 @@ function importExerciseRows(rows) {
     let id = String(f.id == null ? "" : f.id).trim();
     if (!id) { id = uid(); generated++; }
     const repsBlank = f.reps === "" || f.reps == null;
+    let speed = parseFloat(f.speed);
+    if (!(speed > 0)) speed = 1;
+    speed = Math.min(2, Math.max(0.25, speed));
     r.exercises.push({
       id, name: name || "Exercise", videoId: vid,
       start: parseSheetTime(f.start) || 0,
@@ -1147,6 +1334,9 @@ function importExerciseRows(rows) {
       reps: repsBlank ? (mode === "reps" ? 10 : 0) : Math.max(0, parseInt(f.reps, 10) || 0),
       seconds: Math.max(1, parseInt(f.seconds, 10) || 30),
       sets: Math.max(1, parseInt(f.sets, 10) || 1),
+      rest: Math.max(0, parseInt(f.rest, 10) || 0),
+      speed,
+      instr: String(f.instr == null ? "" : f.instr).trim(),
       perSide: sheetTruthy(f.perSide),
       aspect
     });
@@ -1205,13 +1395,34 @@ async function pushCloud(manual) {
   if (manual) syncStatus("Saving…");
   try {
     const body = { newHistory };
-    if (sendConfig) body.exercises = exportExerciseRows();
+    if (sendConfig) {
+      body.exercises = exportExerciseRows();
+      // conflict guard: only overwrite the sheet if it still matches what
+      // this device last saw (the script compares content hashes)
+      if (state.sync.exHash != null) body.baseHash = state.sync.exHash;
+    }
     const res = await fetch(state.sync.url, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" }, // simple request: no CORS preflight
       body: JSON.stringify(body)
     });
     if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json().catch(() => ({}));
+    if (data.conflict) {
+      // history rows were still appended (append-only is always safe);
+      // only the Exercises overwrite was refused
+      state.pendingHistory = [];
+      localStorage.setItem(STORE_KEY, JSON.stringify(state));
+      pushing = false;
+      if (manual && confirm("The sheet's Exercises tab was edited since this device last synced.\n\nOverwrite the sheet with this device's version? (Cancel to keep the sheet — then use ⬇ Load from cloud to bring its changes here.)")) {
+        state.sync.exHash = data.exHash;   // accept the sheet's state as base, then overwrite it
+        return pushCloud(true);
+      }
+      syncStatus("Sheet edited elsewhere — ⬇ Load from cloud to pick up its changes. This device's setup changes are kept and will push after that.", "err");
+      if (!manual) toast("Sync paused: sheet edited elsewhere");
+      return;
+    }
+    if (data.exHash) state.sync.exHash = data.exHash;
     state.pendingHistory = [];
     state.configDirty = false;
     localStorage.setItem(STORE_KEY, JSON.stringify(state)); // save without re-triggering push
@@ -1246,7 +1457,7 @@ async function pullCloud() {
       syncStatus("No usable rows found — each exercise needs a YouTube link in the Video column.", "err");
       return;
     }
-    stopTimer();
+    stopCountdown();
     state.routines = routines;
     const allIds = new Set();
     for (const r of routines) for (const ex of r.exercises) allIds.add(ex.id);
@@ -1255,6 +1466,7 @@ async function pullCloud() {
     if (!allIds.has(state.activeExerciseId)) state.activeExerciseId = null;
     if (remote.history && remote.history.length)
       state.history = importHistoryRows(remote.historyHeader, remote.history);
+    if (remote.exHash) state.sync.exHash = remote.exHash;  // conflict-guard baseline
     if (generated) state.configDirty = true;  // write assigned IDs back to the sheet
     save();
     const ex = activeExercise();

@@ -14,11 +14,22 @@ const EXERCISES = "Exercises";
 const HISTORY = "History";
 const HISTORY_HEADER = ["Date", "Routine", "Exercise", "Type", "Left", "Right", "Reps", "Sets", "Notes"];
 
+// Content hash of the Exercises tab, used as an optimistic-concurrency
+// token: the app sends back the hash it last saw, and a mismatch means the
+// sheet was edited elsewhere, so the overwrite is refused.
+function hashRows(rows) {
+  const s = JSON.stringify(rows);
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+  return String(h);
+}
+
 function doGet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const out = { exercises: [], history: [] };
   const ex = ss.getSheetByName(EXERCISES);
   if (ex && ex.getLastRow() > 0) out.exercises = ex.getDataRange().getValues();
+  out.exHash = hashRows(out.exercises);
   const hs = ss.getSheetByName(HISTORY);
   if (hs && hs.getLastRow() > 1) {
     const v = hs.getDataRange().getValues();
@@ -32,14 +43,8 @@ function doPost(e) {
   const body = JSON.parse(e.postData.contents);
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-  const exRows = body.exercises || [];
-  if (exRows.length) {
-    const sh = ss.getSheetByName(EXERCISES) || ss.insertSheet(EXERCISES, 0);
-    sh.clearContents();
-    sh.getRange(1, 1, exRows.length, exRows[0].length).setValues(exRows);
-    sh.setFrozenRows(1);
-  }
-
+  // History first: append-only, so it is safe even when the exercise
+  // overwrite below is refused as a conflict.
   const histRows = body.newHistory || [];
   if (histRows.length) {
     let sh = ss.getSheetByName(HISTORY);
@@ -53,7 +58,21 @@ function doPost(e) {
     sh.getRange(Math.max(sh.getLastRow(), 1) + 1, 1, padded.length, HISTORY_HEADER.length)
       .setValues(padded);
   }
-  return json({ ok: true });
+
+  const out = { ok: true };
+  const exRows = body.exercises || [];
+  if (exRows.length) {
+    const sh = ss.getSheetByName(EXERCISES) || ss.insertSheet(EXERCISES, 0);
+    if (body.baseHash != null && sh.getLastRow() > 0) {
+      const cur = hashRows(sh.getDataRange().getValues());
+      if (cur !== body.baseHash) return json({ conflict: true, exHash: cur });
+    }
+    sh.clearContents();
+    sh.getRange(1, 1, exRows.length, exRows[0].length).setValues(exRows);
+    sh.setFrozenRows(1);
+    out.exHash = hashRows(sh.getDataRange().getValues());
+  }
+  return json(out);
 }
 
 function json(obj) {
