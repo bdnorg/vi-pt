@@ -12,7 +12,7 @@
 
 const EXERCISES = "Exercises";
 const HISTORY = "History";
-const HISTORY_HEADER = ["Date", "Routine", "Exercise", "Type", "Left", "Right", "Reps", "Sets"];
+const HISTORY_HEADER = ["Date", "Routine", "Exercise", "Type", "Left", "Right", "Reps", "Sets", "Notes"];
 
 function doGet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -43,14 +43,14 @@ function doPost(e) {
   const histRows = body.newHistory || [];
   if (histRows.length) {
     let sh = ss.getSheetByName(HISTORY);
-    if (!sh) {
-      sh = ss.insertSheet(HISTORY);
-      sh.appendRow(HISTORY_HEADER);
-      sh.setFrozenRows(1);
-    }
+    if (!sh) sh = ss.insertSheet(HISTORY);
+    // Self-healing header: rewrite row 1 so new columns (e.g. Notes)
+    // appear on History tabs created by older versions.
+    sh.getRange(1, 1, 1, HISTORY_HEADER.length).setValues([HISTORY_HEADER]);
+    sh.setFrozenRows(1);
     const padded = histRows.map(r =>
       HISTORY_HEADER.map((_, i) => (r[i] == null ? "" : r[i])));
-    sh.getRange(sh.getLastRow() + 1, 1, padded.length, HISTORY_HEADER.length)
+    sh.getRange(Math.max(sh.getLastRow(), 1) + 1, 1, padded.length, HISTORY_HEADER.length)
       .setValues(padded);
   }
   return json({ ok: true });

@@ -148,12 +148,20 @@
   body.mode-normal .editonly { display: none !important; }
   body.mode-edit .normalonly { display: none !important; }
 
+  .notein {
+    width: 100%; margin-top: 10px; padding: 12px; font-size: 16px;
+    background: var(--panel); color: var(--text);
+    border: 1px solid #2f3a45; border-radius: var(--radius);
+  }
+  .notein::placeholder { color: var(--muted); }
+
   /* History */
   #historyList { display: flex; flex-direction: column; gap: 6px; }
   .histitem { background: var(--panel); border-radius: var(--radius); padding: 9px 12px;
-    font-size: 13px; color: var(--muted); display: flex; gap: 10px; }
+    font-size: 13px; color: var(--muted); display: flex; gap: 10px; flex-wrap: wrap; }
   .histitem .d { color: var(--text); white-space: nowrap; }
   .histitem .w { flex: 1; }
+  .histitem .nte { flex-basis: 100%; font-style: italic; }
 
   /* Modals */
   .overlay {
@@ -250,6 +258,10 @@
   <div class="rowbtns editonly">
     <button class="outbtn" id="addExBtn">＋ Add exercise</button>
     <button class="outbtn gray" id="resetAllBtn">Reset all counts</button>
+  </div>
+  <div class="normalonly">
+    <input type="text" id="sessionNote" class="notein" autocomplete="off" enterkeyhint="done"
+           placeholder="Session note (optional) — logged when you finish">
   </div>
   <div class="rowbtns normalonly">
     <button class="outbtn green" id="finishBtn">✓ Finish &amp; log session</button>
@@ -359,9 +371,10 @@ function defaultState() {
     activeRoutineId: rid,
     activeExerciseId: null,
     counts: {},          // exerciseId -> progress (see countsFor)
-    history: [],         // [{date, routine, exercise, l, r, n, sets}]
+    history: [],         // [{date, routine, exercise, l, r, n, sets, note?}]
     pendingHistory: [],  // history rows not yet pushed to the sheet
     configDirty: false,  // exercise/routine setup changed since last push
+    sessionNote: "",     // draft note, attached to the session on finish
     loop: false,
     ui: { mode: "normal", view: "video" },
     sync: { url: "", auto: true }
@@ -733,7 +746,8 @@ function renderHistory() {
     else if (h.n != null) what = h.n + " reps · " + h.sets + " sets";
     else what = h.sets + " sets";
     div.innerHTML = '<span class="d">' + escapeHtml(h.date.slice(5, 10)) + '</span>' +
-      '<span class="w">' + escapeHtml(h.exercise) + '</span><span>' + what + '</span>';
+      '<span class="w">' + escapeHtml(h.exercise) + '</span><span>' + what + '</span>' +
+      (h.note ? '<span class="nte">📝 ' + escapeHtml(h.note) + '</span>' : '');
     list.appendChild(div);
   }
 }
@@ -833,6 +847,10 @@ document.getElementById("finishBtn").addEventListener("click", () => {
   }
   if (rows.length === 0) { toast("Nothing to log yet"); return; }
   if (!confirm("Log " + rows.length + " exercise(s) to history and reset counters?")) return;
+  const note = (state.sessionNote || "").trim();
+  if (note) rows[0].note = note;   // one note per session, on its first row
+  state.sessionNote = "";
+  document.getElementById("sessionNote").value = "";
   state.history.push(...rows);
   if (state.history.length > 300) state.history = state.history.slice(-300);
   state.pendingHistory.push(...rows);
@@ -1064,7 +1082,8 @@ function importExerciseRows(rows) {
 function toHistoryRow(h) {
   return [h.date, h.routine, h.exercise, h.timed ? "hold" : "reps",
           h.l != null ? h.l : "", h.r != null ? h.r : "",
-          h.n != null ? h.n : "", h.sets != null ? h.sets : 0];
+          h.n != null ? h.n : "", h.sets != null ? h.sets : 0,
+          h.note != null ? h.note : ""];
 }
 
 function normalizeSheetDate(v) {
@@ -1077,7 +1096,8 @@ function normalizeSheetDate(v) {
 
 function importHistoryRows(headerRow, rows) {
   const alias = { date: "date", routine: "routine", exercise: "exercise",
-                  type: "type", left: "l", right: "r", reps: "n", sets: "sets" };
+                  type: "type", left: "l", right: "r", reps: "n", sets: "sets",
+                  notes: "note", note: "note" };
   const header = headerMap(headerRow, alias);
   const out = [];
   for (const raw of rows) {
@@ -1092,6 +1112,7 @@ function importHistoryRows(headerRow, rows) {
     if (f.l !== "" && f.l != null) h.l = parseInt(f.l, 10) || 0;
     if (f.r !== "" && f.r != null) h.r = parseInt(f.r, 10) || 0;
     if (f.n !== "" && f.n != null) h.n = parseInt(f.n, 10) || 0;
+    if (f.note != null && String(f.note).trim() !== "") h.note = String(f.note).trim();
     out.push(h);
   }
   return out;
@@ -1225,6 +1246,12 @@ document.addEventListener("visibilitychange", () => {
 });
 
 // ---------- Init ----------
+{
+  // Draft session note survives reloads; it only pushes with the session.
+  const noteEl = document.getElementById("sessionNote");
+  noteEl.value = state.sessionNote || "";
+  noteEl.addEventListener("input", () => { state.sessionNote = noteEl.value; save(); });
+}
 renderAll();
 acquireWakeLock();
 if ("serviceWorker" in navigator) {

@@ -57,8 +57,12 @@ One-time, about two minutes:
   End, Aspect, ID`. `Type` is `reps` or `hold`; `Start`/`End` are seconds
   (or `m:ss`); `Aspect` is `16:9`, `4:3`, `1:1`, or `9:16`.
 - **History** tab — one row per exercise per finished session:
-  `Date, Routine, Exercise, Type, Left, Right, Reps, Sets`. Append-only;
-  this is the full log (the app only shows the recent tail).
+  `Date, Routine, Exercise, Type, Left, Right, Reps, Sets, Notes`.
+  Append-only; this is the full log (the app only shows the recent tail).
+  `Reps` is the total reps done for that exercise across the session's
+  sets (`Left`/`Right` for per-side exercises). A session note typed into
+  the field above **✓ Finish & log session** lands in `Notes` on the
+  session's first row.
 
 **You can edit the sheet directly.** Change any exercise's settings, add
 new rows (leave `ID` blank — the app assigns one), reorder or re-group
